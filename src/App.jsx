@@ -12,7 +12,7 @@ import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Goals from './pages/Goals';
 import AdminPanel from './pages/AdminPanel';
-import PacerSettings from './pages/PacerSettings';
+import StandardPaceGroups from './pages/StandardPaceGroups';
 import Analytics from './pages/Analytics';
 import NotificationManager from './components/NotificationManager';
 import './App.css';
@@ -53,12 +53,22 @@ function App() {
           <Toaster position="top-right" />
           <NotificationManager />
           <Routes>
-            <Route path="/login" element={<PublicRoute>
-              <Login />
-            </PublicRoute>} />
-            <Route path="/" element={<ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>} >
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
               <Route index element={<Navigate to="/dashboard" />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="sessions" element={<Sessions />} />
@@ -67,7 +77,7 @@ function App() {
               <Route path="goals" element={<Goals />} />
               <Route path="profile" element={<Profile />} />
               <Route path="admin" element={<AdminPanel />} />
-              <Route path="pacer-settings" element={<PacerSettings />} />
+              <Route path="admin/pace-groups" element={<StandardPaceGroups />} />
               <Route path="analytics" element={<Analytics />} />
             </Route>
           </Routes>

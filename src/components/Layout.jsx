@@ -7,19 +7,9 @@ import * as FiIcons from 'react-icons/fi';
 import { analyticsService } from '../services/analyticsService';
 
 const {
-  FiHome,
-  FiCalendar,
-  FiUsers,
-  FiSettings,
-  FiLogOut,
-  FiMenu,
-  FiX,
-  FiActivity,
-  FiShield,
-  FiBell,
-  FiUser,
-  FiTarget,
-  FiBarChart2
+  FiHome, FiCalendar, FiUsers, FiSettings, FiLogOut, FiMenu, FiX,
+  FiActivity, FiShield, FiBell, FiUser, FiTarget, FiBarChart2,
+  FiList
 } = FiIcons;
 
 function Layout() {
@@ -38,6 +28,7 @@ function Layout() {
 
   if (user?.isAdmin) {
     navigation.push({ name: 'Admin Panel', href: '/admin', icon: FiShield });
+    navigation.push({ name: 'Pace Groups', href: '/admin/pace-groups', icon: FiList });
     navigation.push({ name: 'Analytics', href: '/analytics', icon: FiBarChart2 });
   }
 
@@ -64,7 +55,8 @@ function Layout() {
       {/* Sidebar */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:translate-x-0 transform transition-transform duration-300 ease-in-out
+          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:translate-x-0
+          transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
@@ -90,7 +82,11 @@ function Layout() {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
                 {user?.picture ? (
-                  <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
                 ) : (
                   <SafeIcon icon={FiUser} className="w-5 h-5 text-white" />
                 )}
@@ -153,7 +149,7 @@ function Layout() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <button 
+              <button
                 className="p-2 rounded-lg hover:bg-gray-100 relative"
                 onClick={() => {
                   const event = new CustomEvent('show-notification', {
