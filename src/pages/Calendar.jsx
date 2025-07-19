@@ -1,103 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Calendar from 'react-calendar';
-import { format, isSameDay, parseISO } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { sessionService } from '../services/sessionService';
 import 'react-calendar/dist/Calendar.css';
 
-const { FiCalendar, FiClock, FiMapPin, FiUsers, FiPlus, FiFilter } = FiIcons;
+const { FiCalendar, FiClock, FiMapPin, FiUsers, FiFilter, FiChevronRight } = FiIcons;
 
 function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState('calendar'); // 'calendar' or 'list'
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const sessions = [
-    {
-      id: 1,
-      title: 'Morning Run',
-      date: '2024-01-20',
-      time: '07:00',
-      location: 'Central Park',
-      attendees: 12,
-      type: 'regular'
-    },
-    {
-      id: 2,
-      title: 'Hill Training',
-      date: '2024-01-22',
-      time: '18:30',
-      location: 'Hill Park',
-      attendees: 8,
-      type: 'training'
-    },
-    {
-      id: 3,
-      title: 'Weekend Long Run',
-      date: '2024-01-25',
-      time: '08:00',
-      location: 'Riverside Trail',
-      attendees: 15,
-      type: 'long'
-    },
-    {
-      id: 4,
-      title: 'Track Session',
-      date: '2024-01-27',
-      time: '17:00',
-      location: 'Track & Field',
-      attendees: 10,
-      type: 'speed'
-    },
-    {
-      id: 5,
-      title: 'Recovery Run',
-      date: '2024-01-29',
-      time: '07:30',
-      location: 'Park Loop',
-      attendees: 6,
-      type: 'recovery'
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const loadSessions = async () => {
+    try {
+      setLoading(true);
+      const data = await sessionService.getSessions();
+      setSessions(data);
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  const events = [
-    {
-      id: 1,
-      title: 'Monthly Challenge',
-      date: '2024-01-31',
-      time: '09:00',
-      location: 'City Marathon Route',
-      attendees: 25,
-      type: 'event'
-    },
-    {
-      id: 2,
-      title: 'Social Meetup',
-      date: '2024-02-03',
-      time: '18:00',
-      location: 'Community Center',
-      attendees: 20,
-      type: 'social'
-    }
-  ];
-
-  const allActivities = [...sessions, ...events];
+  };
 
   const getSessionsForDate = (date) => {
-    return allActivities.filter(activity => 
-      isSameDay(parseISO(activity.date), date)
-    );
+    if (!date) return [];
+    return sessions.filter(session => {
+      if (!session.date) return false;
+      const sessionDate = new Date(session.date);
+      return isSameDay(date, sessionDate);
+    });
   };
 
   const getTypeColor = (type) => {
     const colors = {
-      regular: 'bg-blue-100 text-blue-800',
-      training: 'bg-orange-100 text-orange-800',
-      long: 'bg-purple-100 text-purple-800',
-      speed: 'bg-red-100 text-red-800',
-      recovery: 'bg-green-100 text-green-800',
-      event: 'bg-yellow-100 text-yellow-800',
-      social: 'bg-pink-100 text-pink-800'
+      'easy': 'bg-green-100 text-green-800',
+      'tempo': 'bg-blue-100 text-blue-800',
+      'interval': 'bg-purple-100 text-purple-800',
+      'long-slow': 'bg-yellow-100 text-yellow-800',
+      'trail': 'bg-orange-100 text-orange-800',
+      'regular': 'bg-blue-100 text-blue-800',
+      'training': 'bg-orange-100 text-orange-800',
+      'long': 'bg-purple-100 text-purple-800',
+      'speed': 'bg-red-100 text-red-800',
+      'recovery': 'bg-green-100 text-green-800',
+      'event': 'bg-yellow-100 text-yellow-800',
+      'social': 'bg-pink-100 text-pink-800'
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
@@ -108,11 +64,8 @@ function CalendarPage() {
       if (sessionsForDate.length > 0) {
         return (
           <div className="flex flex-wrap gap-1 mt-1">
-            {sessionsForDate.slice(0, 2).map((session) => (
-              <div
-                key={session.id}
-                className="w-2 h-2 rounded-full bg-blue-500"
-              />
+            {sessionsForDate.slice(0, 2).map((session, idx) => (
+              <div key={idx} className="w-2 h-2 rounded-full bg-blue-500" />
             ))}
             {sessionsForDate.length > 2 && (
               <div className="w-2 h-2 rounded-full bg-gray-400" />
@@ -125,6 +78,14 @@ function CalendarPage() {
   };
 
   const selectedDateSessions = getSessionsForDate(selectedDate);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -139,8 +100,8 @@ function CalendarPage() {
             <button
               onClick={() => setView('calendar')}
               className={`px-4 py-2 rounded-l-lg font-medium transition-colors ${
-                view === 'calendar' 
-                  ? 'bg-blue-600 text-white' 
+                view === 'calendar'
+                  ? 'bg-blue-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -149,8 +110,8 @@ function CalendarPage() {
             <button
               onClick={() => setView('list')}
               className={`px-4 py-2 rounded-r-lg font-medium transition-colors ${
-                view === 'list' 
-                  ? 'bg-blue-600 text-white' 
+                view === 'list'
+                  ? 'bg-blue-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -187,15 +148,14 @@ function CalendarPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {format(selectedDate, 'MMMM d, yyyy')}
             </h2>
-            
             {selectedDateSessions.length > 0 ? (
               <div className="space-y-4">
                 {selectedDateSessions.map((session) => (
                   <div key={session.id} className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-medium text-gray-900">{session.title}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(session.type)}`}>
-                        {session.type}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(session.runType || 'regular')}`}>
+                        {session.runType || 'regular'}
                       </span>
                     </div>
                     <div className="space-y-1 text-sm text-gray-600">
@@ -209,8 +169,17 @@ function CalendarPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <SafeIcon icon={FiUsers} className="w-4 h-4" />
-                        <span>{session.attendees} attendees</span>
+                        <span>{session.attendeeCount || 0} attendees</span>
                       </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button 
+                        onClick={() => window.location.href = `#/sessions?id=${session.id}`}
+                        className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        <span>Details</span>
+                        <SafeIcon icon={FiChevronRight} className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -239,49 +208,62 @@ function CalendarPage() {
               </button>
             </div>
           </div>
-          
           <div className="divide-y divide-gray-200">
-            {allActivities.map((activity, index) => (
-              <motion.div
-                key={activity.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-6 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">{activity.title}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.type)}`}>
-                        {activity.type}
-                      </span>
+            {sessions
+              .filter(session => new Date(session.date) >= new Date())
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map((session, index) => (
+                <motion.div
+                  key={session.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="p-6 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">{session.title}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(session.runType || 'regular')}`}>
+                          {session.runType || 'regular'}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-6 text-sm text-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <SafeIcon icon={FiCalendar} className="w-4 h-4" />
+                          <span>{new Date(session.date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <SafeIcon icon={FiClock} className="w-4 h-4" />
+                          <span>{session.time}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <SafeIcon icon={FiMapPin} className="w-4 h-4" />
+                          <span>{session.location}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <SafeIcon icon={FiUsers} className="w-4 h-4" />
+                          <span>{session.attendeeCount || 0} attending</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-6 text-sm text-gray-600">
-                      <div className="flex items-center space-x-2">
-                        <SafeIcon icon={FiCalendar} className="w-4 h-4" />
-                        <span>{format(parseISO(activity.date), 'MMM d, yyyy')}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <SafeIcon icon={FiClock} className="w-4 h-4" />
-                        <span>{activity.time}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <SafeIcon icon={FiMapPin} className="w-4 h-4" />
-                        <span>{activity.location}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <SafeIcon icon={FiUsers} className="w-4 h-4" />
-                        <span>{activity.attendees} attending</span>
-                      </div>
-                    </div>
+                    <button 
+                      onClick={() => window.location.href = `#/sessions?id=${session.id}`}
+                      className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      View Details
+                    </button>
                   </div>
-                  <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
-                    View Details
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
+            
+            {sessions.filter(session => new Date(session.date) >= new Date()).length === 0 && (
+              <div className="text-center py-12">
+                <SafeIcon icon={FiCalendar} className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No upcoming sessions</h3>
+                <p className="text-gray-500">Check back later or create a new session</p>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

@@ -13,6 +13,8 @@ import Profile from './pages/Profile';
 import Goals from './pages/Goals';
 import AdminPanel from './pages/AdminPanel';
 import PacerSettings from './pages/PacerSettings';
+import Analytics from './pages/Analytics';
+import NotificationManager from './components/NotificationManager';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -49,23 +51,14 @@ function App() {
       <Router>
         <div className="min-h-screen bg-gray-50">
           <Toaster position="top-right" />
+          <NotificationManager />
           <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
+            <Route path="/login" element={<PublicRoute>
+              <Login />
+            </PublicRoute>} />
+            <Route path="/" element={<ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>} >
               <Route index element={<Navigate to="/dashboard" />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="sessions" element={<Sessions />} />
@@ -75,6 +68,7 @@ function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="admin" element={<AdminPanel />} />
               <Route path="pacer-settings" element={<PacerSettings />} />
+              <Route path="analytics" element={<Analytics />} />
             </Route>
           </Routes>
         </div>

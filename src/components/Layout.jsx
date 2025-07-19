@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { analyticsService } from '../services/analyticsService';
 
 const {
   FiHome,
@@ -17,7 +18,8 @@ const {
   FiShield,
   FiBell,
   FiUser,
-  FiTarget
+  FiTarget,
+  FiBarChart2
 } = FiIcons;
 
 function Layout() {
@@ -36,7 +38,16 @@ function Layout() {
 
   if (user?.isAdmin) {
     navigation.push({ name: 'Admin Panel', href: '/admin', icon: FiShield });
+    navigation.push({ name: 'Analytics', href: '/analytics', icon: FiBarChart2 });
   }
+
+  useEffect(() => {
+    // Track page view when route changes
+    const currentPath = location.pathname;
+    if (user?.id) {
+      analyticsService.trackPageView(currentPath, user.id);
+    }
+  }, [location.pathname, user]);
 
   const isActive = (path) => location.pathname === path;
 
@@ -51,11 +62,9 @@ function Layout() {
       )}
 
       {/* Sidebar */}
-      <div 
+      <div
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg 
-          lg:static lg:translate-x-0 
-          transform transition-transform duration-300 ease-in-out
+          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:translate-x-0 transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
@@ -81,11 +90,7 @@ function Layout() {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
                 {user?.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
+                  <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
                 ) : (
                   <SafeIcon icon={FiUser} className="w-5 h-5 text-white" />
                 )}
@@ -148,7 +153,19 @@ function Layout() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="p-2 rounded-lg hover:bg-gray-100 relative">
+              <button 
+                className="p-2 rounded-lg hover:bg-gray-100 relative"
+                onClick={() => {
+                  const event = new CustomEvent('show-notification', {
+                    detail: {
+                      title: 'New Notification',
+                      message: 'This is a test notification',
+                      type: 'info'
+                    }
+                  });
+                  document.dispatchEvent(event);
+                }}
+              >
                 <SafeIcon icon={FiBell} className="w-5 h-5 text-gray-600" />
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full notification-badge"></span>
               </button>

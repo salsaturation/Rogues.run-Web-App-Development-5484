@@ -2,25 +2,61 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { requestNotificationPermission, setupMessageListener } from '../utils/notifications';
+import { analyticsService } from '../services/analyticsService';
+import { useAuth } from '../contexts/AuthContext';
 
-const { FiBell, FiX, FiCheck } = FiIcons;
+const { FiBell, FiX } = FiIcons;
 
 function NotificationManager() {
   const [notifications, setNotifications] = useState([]);
-  const [permission, setPermission] = useState(Notification.permission);
+  const [permission, setPermission] = useState('default');
+  const { user } = useAuth();
 
   useEffect(() => {
-    setupMessageListener();
-    
     // Check notification permission on mount
-    setPermission(Notification.permission);
+    if (window.Notification) {
+      setPermission(Notification.permission);
+    }
+    
+    // Listen for browser notification permission changes
+    const handlePermissionChange = () => {
+      if (window.Notification) {
+        setPermission(Notification.permission);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handlePermissionChange);
+    
+    // Listen for custom notification events
+    const handleShowNotification = (e) => {
+      const { title, message, type } = e.detail;
+      addNotification({
+        title: title || 'Notification',
+        message: message || 'New notification',
+        type: type || 'info'
+      });
+    };
+    
+    document.addEventListener('show-notification', handleShowNotification);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handlePermissionChange);
+      document.removeEventListener('show-notification', handleShowNotification);
+    };
   }, []);
 
   const requestPermission = async () => {
-    const token = await requestNotificationPermission();
-    if (token) {
-      setPermission('granted');
+    try {
+      if (window.Notification) {
+        const permission = await Notification.requestPermission();
+        setPermission(permission);
+        
+        if (permission === 'granted' && user?.id) {
+          analyticsService.trackEvent('notification_permission_granted', user.id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to request notification permission:', error);
     }
   };
 
@@ -30,7 +66,16 @@ function NotificationManager() {
       ...notification,
       timestamp: new Date()
     };
+    
     setNotifications(prev => [newNotification, ...prev]);
+    
+    // Track notification displayed
+    if (user?.id) {
+      analyticsService.trackEvent('notification_displayed', user.id, {
+        notification_type: notification.type,
+        notification_title: notification.title
+      });
+    }
     
     // Auto-remove after 5 seconds
     setTimeout(() => {
@@ -60,6 +105,16 @@ function NotificationManager() {
       type: 'member'
     }
   ];
+
+  // Function to show demo notifications
+  const showDemoNotification = (demo) => {
+    addNotification(demo);
+    if (user?.id) {
+      analyticsService.trackEvent('demo_notification_triggered', user.id, {
+        notification_type: demo.type
+      });
+    }
+  };
 
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
@@ -119,19 +174,17 @@ function NotificationManager() {
       </AnimatePresence>
 
       {/* Demo Notification Trigger (for testing) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 right-4 space-y-2">
-          {demoNotifications.map((demo, index) => (
-            <button
-              key={index}
-              onClick={() => addNotification(demo)}
-              className="bg-gray-800 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 transition-colors"
-            >
-              Test: {demo.title}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="fixed bottom-4 right-4 space-y-2">
+        {demoNotifications.map((demo, index) => (
+          <button
+            key={index}
+            onClick={() => showDemoNotification(demo)}
+            className="bg-gray-800 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 transition-colors"
+          >
+            Test: {demo.title}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
