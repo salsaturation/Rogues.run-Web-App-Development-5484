@@ -474,42 +474,53 @@ export const sessionService = {
   // Find sessions matching user pace preferences
   async findSessionsByPacePreferences(userId) {
     try {
+      // Direct approach - get all sessions and filter manually
       // First get user's pace preferences
       const { data: userData, error: userError } = await supabase
         .from('users_rogues_7a9k2m')
-        .select('pacePreferences')
+        .select('pace_preferences')
         .eq('id', userId)
         .single();
-      
-      if (userError || !userData || !userData.pacePreferences) {
+
+      if (userError || !userData || !userData.pace_preferences || userData.pace_preferences.length === 0) {
+        console.log("No pace preferences found for user:", userId);
         return [];
       }
-      
-      const pacePreferences = userData.pacePreferences;
-      
-      // Find upcoming sessions that match user's pace preferences
+
+      const pacePreferences = userData.pace_preferences;
+      console.log("User pace preferences:", pacePreferences);
+
+      // Get upcoming sessions
       const { data: sessions, error } = await supabase
         .from('sessions_rogues_7a9k2m')
         .select('*')
         .gte('session_date', new Date().toISOString().split('T')[0])
         .order('session_date', { ascending: true });
-        
-      if (error) throw error;
-      
+
+      if (error) {
+        console.error("Error fetching sessions:", error);
+        throw error;
+      }
+
+      console.log("Found sessions:", sessions.length);
+
       // Filter sessions by matching pace preferences
       const matchedSessions = sessions.filter(session => {
+        // Skip sessions without pace info
         if (!session.pace_min || !session.pace_max) return false;
-        
+
         return pacePreferences.some(pref => {
-          // Match by run type and pace range
-          return (
-            (!session.run_type || session.run_type === pref.runType) && 
-            pref.pace >= session.pace_min && 
-            pref.pace <= session.pace_max
-          );
+          const prefPace = parseFloat(pref.pace);
+          // Match by pace range and optionally run type
+          const matchesPace = prefPace >= session.pace_min && prefPace <= session.pace_max;
+          const matchesType = !session.run_type || !pref.runType || session.run_type === pref.runType;
+          
+          return matchesPace && matchesType;
         });
       });
-      
+
+      console.log("Matched sessions:", matchedSessions.length);
+
       return matchedSessions.map(session => ({
         id: session.id,
         title: session.title,

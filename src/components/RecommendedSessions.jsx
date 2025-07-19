@@ -24,10 +24,37 @@ function RecommendedSessions() {
   const loadRecommendedSessions = async () => {
     try {
       setLoading(true);
-      const sessions = await sessionService.findSessionsByPacePreferences(user.id);
+      // Get all sessions first as a fallback
+      const allSessions = await sessionService.getSessions();
+      
+      // Filter for upcoming sessions
+      const today = new Date();
+      const upcomingSessions = allSessions.filter(session => {
+        const sessionDate = new Date(session.date);
+        return sessionDate >= today;
+      }).slice(0, 3); // Limit to 3 sessions
+      
+      // Try to get pace-matched sessions
+      let sessions = [];
+      
+      if (user.pacePreferences && user.pacePreferences.length > 0) {
+        try {
+          // Get sessions that match user's pace preferences
+          sessions = await sessionService.findSessionsByPacePreferences(user.id);
+        } catch (error) {
+          console.error("Error finding sessions by pace:", error);
+        }
+      }
+      
+      // If no matched sessions found, use upcoming sessions as fallback
+      if (!sessions || sessions.length === 0) {
+        sessions = upcomingSessions;
+      }
+      
       setMatchedSessions(sessions);
     } catch (error) {
       console.error('Failed to load recommended sessions:', error);
+      setMatchedSessions([]);
     } finally {
       setLoading(false);
     }
@@ -58,6 +85,7 @@ function RecommendedSessions() {
     );
   }
 
+  // Show prompt to set pace preferences only if user has none
   if (!user?.pacePreferences || user.pacePreferences.length === 0) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -95,6 +123,7 @@ function RecommendedSessions() {
       <p className="text-sm text-gray-600 mb-6">
         Sessions that match your pace preferences
       </p>
+
       <div className="space-y-4">
         {matchedSessions.map((session) => (
           <motion.div
@@ -121,12 +150,16 @@ function RecommendedSessions() {
                 </div>
                 <div className="flex items-center space-x-1">
                   <SafeIcon icon={FiActivity} className="w-4 h-4" />
-                  <span>{formatPace(session.paceMin)} - {formatPace(session.paceMax)} min/km</span>
+                  <span>
+                    {session.paceMin && session.paceMax ? 
+                      `${formatPace(session.paceMin)} - ${formatPace(session.paceMax)} min/km` : 
+                      'Pace not specified'}
+                  </span>
                 </div>
               </div>
             </div>
-            <Link 
-              to={`/sessions`} 
+            <Link
+              to={`/sessions`}
               state={{ sessionId: session.id }}
               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
             >
