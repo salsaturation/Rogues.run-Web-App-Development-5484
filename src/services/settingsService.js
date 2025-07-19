@@ -12,28 +12,26 @@ export const settingsService = {
         .single();
 
       if (error) {
-        // If no settings exist, return defaults
-        if (error.code === 'PGRST116') {
-          return {
-            clubName: 'Rogues.run',
-            clubTagline: 'Join the Running Revolution',
-            clubMotto: 'Every step counts, every mile matters',
-            clubLogo: '',
-            clubFavicon: '',
-            primaryColor: '#3b82f6',
-            secondaryColor: '#8b5cf6',
-            description: 'A community of passionate runners pushing boundaries together.',
-            website: '',
-            distanceUnit: DISTANCE_UNITS.KILOMETERS, // Default to kilometers
-            socialMedia: {
-              facebook: '',
-              instagram: '',
-              twitter: '',
-              strava: ''
-            }
-          };
-        }
-        throw error;
+        console.error('Error fetching club settings:', error);
+        // Return default settings
+        return {
+          clubName: 'Rogues.run',
+          clubTagline: 'Join the Running Revolution',
+          clubMotto: 'Every step counts, every mile matters',
+          clubLogo: '',
+          clubFavicon: '',
+          primaryColor: '#3b82f6',
+          secondaryColor: '#8b5cf6',
+          description: 'A community of passionate runners pushing boundaries together.',
+          website: '',
+          distanceUnit: DISTANCE_UNITS.KILOMETERS,
+          socialMedia: {
+            facebook: '',
+            instagram: '',
+            twitter: '',
+            strava: ''
+          }
+        };
       }
 
       return {
@@ -56,7 +54,7 @@ export const settingsService = {
       };
     } catch (error) {
       console.error('Failed to fetch club settings:', error);
-      // Return default settings
+      // Return default settings on error
       return {
         clubName: 'Rogues.run',
         clubTagline: 'Join the Running Revolution',
@@ -67,7 +65,7 @@ export const settingsService = {
         secondaryColor: '#8b5cf6',
         description: 'A community of passionate runners pushing boundaries together.',
         website: '',
-        distanceUnit: DISTANCE_UNITS.KILOMETERS, // Default to kilometers
+        distanceUnit: DISTANCE_UNITS.KILOMETERS,
         socialMedia: {
           facebook: '',
           instagram: '',
@@ -83,7 +81,7 @@ export const settingsService = {
     try {
       const { error } = await supabase
         .from('club_settings_rogues_7a9k2m')
-        .upsert([{
+        .upsert({
           id: 1, // Single row for settings
           club_name: settings.clubName,
           club_tagline: settings.clubTagline,
@@ -97,13 +95,18 @@ export const settingsService = {
           distance_unit: settings.distanceUnit || DISTANCE_UNITS.KILOMETERS,
           social_media: settings.socialMedia,
           updated_at: new Date().toISOString()
-        }]);
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating settings:', error);
+        throw error;
+      }
 
+      toast.success('Settings updated successfully');
       return true;
     } catch (error) {
       console.error('Failed to update club settings:', error);
+      toast.error('Failed to update settings');
       throw error;
     }
   }
