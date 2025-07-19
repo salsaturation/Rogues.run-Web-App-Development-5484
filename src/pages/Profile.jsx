@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { DISTANCE_UNITS } from '../utils/unitConversion';
 
-const {
-  FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX, FiCamera, FiActivity,
-  FiCalendar, FiAward, FiTrendingUp, FiClock, FiPlus, FiTrash2
-} = FiIcons;
+const { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX, FiCamera, FiActivity, FiCalendar, FiAward, FiTrendingUp, FiClock, FiPlus, FiTrash2 } = FiIcons;
 
 function Profile() {
   const { user, updateUserProfile } = useAuth();
+  const { userSettings, updateUserSettings } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
@@ -20,6 +20,7 @@ function Profile() {
     location: 'New York, NY',
     bio: 'Passionate runner and community member',
     pacePreferences: user?.pacePreferences || [],
+    distanceUnit: userSettings?.distanceUnit || null, // null means use club default
     preferences: {
       emailNotifications: true,
       pushNotifications: true,
@@ -27,7 +28,7 @@ function Profile() {
       weeklyDigest: false
     }
   });
-
+  
   const [newPacePreference, setNewPacePreference] = useState({
     pace: '',
     runType: 'easy'
@@ -49,7 +50,7 @@ function Profile() {
     { id: 6, title: 'Social Runner', description: 'Invited 5 new members', earned: false }
   ];
 
-  // Load user pace preferences on mount
+  // Load user pace preferences and settings on mount
   useEffect(() => {
     if (user?.pacePreferences) {
       setProfileData(prev => ({
@@ -57,12 +58,39 @@ function Profile() {
         pacePreferences: user.pacePreferences
       }));
     }
-  }, [user]);
+    
+    // Load user unit preferences
+    if (userSettings) {
+      setProfileData(prev => ({
+        ...prev,
+        distanceUnit: userSettings.distanceUnit
+      }));
+    }
+  }, [user, userSettings]);
 
-  const handleSave = () => {
-    updateUserProfile(profileData);
+  const handleSave = async () => {
+    // Save profile data
+    const profileUpdateResult = await updateUserProfile({
+      name: profileData.name,
+      email: profileData.email,
+      phone: profileData.phone,
+      location: profileData.location,
+      bio: profileData.bio,
+      pacePreferences: profileData.pacePreferences
+    });
+
+    // Save user settings
+    const settingsUpdateResult = await updateUserSettings({
+      distanceUnit: profileData.distanceUnit
+    });
+
     setIsEditing(false);
-    toast.success('Profile updated successfully!');
+    
+    if (profileUpdateResult && settingsUpdateResult) {
+      toast.success('Profile and preferences updated successfully!');
+    } else {
+      toast.error('Some updates failed. Please try again.');
+    }
   };
 
   const handleCancel = () => {
@@ -73,6 +101,7 @@ function Profile() {
       location: 'New York, NY',
       bio: 'Passionate runner and community member',
       pacePreferences: user?.pacePreferences || [],
+      distanceUnit: userSettings?.distanceUnit || null,
       preferences: {
         emailNotifications: true,
         pushNotifications: true,
@@ -96,7 +125,6 @@ function Profile() {
     }
 
     const pace = parseFloat(newPacePreference.pace);
-    
     const updatedPreferences = [
       ...profileData.pacePreferences,
       {
@@ -105,28 +133,15 @@ function Profile() {
         runType: newPacePreference.runType
       }
     ];
-    
-    setProfileData({
-      ...profileData,
-      pacePreferences: updatedPreferences
-    });
-    
-    setNewPacePreference({
-      pace: '',
-      runType: 'easy'
-    });
-    
+
+    setProfileData({ ...profileData, pacePreferences: updatedPreferences });
+    setNewPacePreference({ pace: '', runType: 'easy' });
     toast.success('Pace preference added');
   };
 
   const handleRemovePacePreference = (id) => {
     const updatedPreferences = profileData.pacePreferences.filter(pref => pref.id !== id);
-    
-    setProfileData({
-      ...profileData,
-      pacePreferences: updatedPreferences
-    });
-    
+    setProfileData({ ...profileData, pacePreferences: updatedPreferences });
     toast.success('Pace preference removed');
   };
 
@@ -170,13 +185,18 @@ function Profile() {
               <SafeIcon icon={FiCamera} className="w-4 h-4" />
             </button>
           </div>
+
           <div className="flex-1 text-center sm:text-left">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{user?.name}</h1>
                 <p className="text-gray-600">{user?.email}</p>
                 <div className="flex items-center justify-center sm:justify-start space-x-2 mt-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${user?.isAdmin ? 'bg-purple-100 text-purple-800' : user?.canPublish ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    user?.isAdmin ? 'bg-purple-100 text-purple-800' : 
+                    user?.canPublish ? 'bg-blue-100 text-blue-800' : 
+                    'bg-green-100 text-green-800'
+                  }`}>
                     {user?.isAdmin ? 'Admin' : user?.canPublish ? 'Publisher' : 'Member'}
                   </span>
                   <span className="text-sm text-gray-500">
@@ -238,6 +258,7 @@ function Profile() {
               </button>
             )}
           </div>
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
@@ -252,6 +273,7 @@ function Profile() {
                 <p className="text-gray-900">{profileData.name}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               {isEditing ? (
@@ -265,6 +287,7 @@ function Profile() {
                 <p className="text-gray-900">{profileData.email}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
               {isEditing ? (
@@ -278,6 +301,7 @@ function Profile() {
                 <p className="text-gray-900">{profileData.phone || 'Not provided'}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
               {isEditing ? (
@@ -291,6 +315,7 @@ function Profile() {
                 <p className="text-gray-900">{profileData.location}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
               {isEditing ? (
@@ -320,7 +345,7 @@ function Profile() {
               <span>min/km</span>
             </div>
           </div>
-          
+
           {/* Current Pace Preferences */}
           <div className="space-y-4 mb-6">
             {profileData.pacePreferences && profileData.pacePreferences.length > 0 ? (
@@ -336,7 +361,7 @@ function Profile() {
                       </div>
                     </div>
                     {isEditing && (
-                      <button 
+                      <button
                         onClick={() => handleRemovePacePreference(preference.id)}
                         className="p-1 hover:bg-red-50 rounded-full text-red-500"
                       >
@@ -355,7 +380,7 @@ function Profile() {
               </div>
             )}
           </div>
-          
+
           {/* Add New Pace Preference */}
           {isEditing && (
             <div className="border-t border-gray-200 pt-4">
@@ -397,6 +422,53 @@ function Profile() {
               </p>
             </div>
           )}
+
+          {/* Unit Preferences */}
+          {isEditing && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <h3 className="font-medium text-gray-900 mb-3">Unit Preferences</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Distance Unit</label>
+                  <div className="flex space-x-4">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="distanceUnit"
+                        checked={profileData.distanceUnit === null}
+                        onChange={() => setProfileData({ ...profileData, distanceUnit: null })}
+                        className="form-radio h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2">Use Club Default</span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="distanceUnit"
+                        checked={profileData.distanceUnit === 'km'}
+                        onChange={() => setProfileData({ ...profileData, distanceUnit: 'km' })}
+                        className="form-radio h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2">Kilometers (km)</span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="distanceUnit"
+                        checked={profileData.distanceUnit === 'mi'}
+                        onChange={() => setProfileData({ ...profileData, distanceUnit: 'mi' })}
+                        className="form-radio h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2">Miles (mi)</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    This setting affects how distances and paces are displayed throughout the app.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Notifications */}
@@ -424,12 +496,10 @@ function Profile() {
                   <input
                     type="checkbox"
                     checked={value}
-                    onChange={(e) =>
-                      setProfileData({
-                        ...profileData,
-                        preferences: { ...profileData.preferences, [key]: e.target.checked }
-                      })
-                    }
+                    onChange={(e) => setProfileData({
+                      ...profileData,
+                      preferences: { ...profileData.preferences, [key]: e.target.checked }
+                    })}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>

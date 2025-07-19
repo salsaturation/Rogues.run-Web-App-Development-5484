@@ -109,5 +109,69 @@ export const settingsService = {
       toast.error('Failed to update settings');
       throw error;
     }
+  },
+
+  // Get user-specific settings
+  async getUserSettings(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('users_rogues_7a9k2m')
+        .select('user_preferences')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user settings:', error);
+        return { distanceUnit: null }; // Default to null (use club settings)
+      }
+
+      // Return user preferences, defaulting to empty object with null distanceUnit
+      return data.user_preferences || { distanceUnit: null };
+    } catch (error) {
+      console.error('Failed to fetch user settings:', error);
+      return { distanceUnit: null };
+    }
+  },
+
+  // Update user-specific settings
+  async updateUserSettings(userId, settings) {
+    try {
+      // First, get current user preferences
+      const { data, error: fetchError } = await supabase
+        .from('users_rogues_7a9k2m')
+        .select('user_preferences')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // Not found is ok
+        console.error('Error fetching user settings:', fetchError);
+        throw fetchError;
+      }
+
+      // Merge existing preferences with new settings
+      const currentPreferences = data?.user_preferences || {};
+      const updatedPreferences = { ...currentPreferences, ...settings };
+
+      // Update the user preferences
+      const { error: updateError } = await supabase
+        .from('users_rogues_7a9k2m')
+        .update({ 
+          user_preferences: updatedPreferences,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('Error updating user settings:', updateError);
+        throw updateError;
+      }
+
+      toast.success('Your preferences have been updated');
+      return true;
+    } catch (error) {
+      console.error('Failed to update user settings:', error);
+      toast.error('Failed to update your preferences');
+      throw error;
+    }
   }
 };

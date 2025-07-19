@@ -20,12 +20,11 @@ function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending
   };
 
   // Convert distance if needed
-  const displayDistance = session.totalDistance 
-    ? formatDistanceWithUnit(
-        convertDistance(session.totalDistance, DISTANCE_UNITS.KILOMETERS, distanceUnit), 
-        distanceUnit
-      )
-    : null;
+  const displayDistance = session.totalDistance ? 
+    formatDistanceWithUnit(
+      convertDistance(session.totalDistance, DISTANCE_UNITS.KILOMETERS, distanceUnit),
+      distanceUnit
+    ) : null;
 
   return (
     <motion.div
@@ -65,7 +64,7 @@ function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending
           </span>
         </div>
       </div>
-
+      
       {/* Attendees */}
       {session.attendees && session.attendees.length > 0 && (
         <div className="mb-4">
@@ -84,7 +83,7 @@ function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending
           </div>
         </div>
       )}
-
+      
       {/* Actions */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
         <button
