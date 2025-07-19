@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -48,41 +49,43 @@ function PublicRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-gray-50">
-          <Toaster position="top-right" />
-          <NotificationManager />
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Navigate to="/dashboard" />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="sessions" element={<Sessions />} />
-              <Route path="calendar" element={<Calendar />} />
-              <Route path="members" element={<Members />} />
-              <Route path="goals" element={<Goals />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="admin" element={<AdminPanel />} />
-              <Route path="admin/pace-groups" element={<StandardPaceGroups />} />
-              <Route path="analytics" element={<Analytics />} />
-            </Route>
-          </Routes>
-        </div>
-      </Router>
+      <SettingsProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-50">
+            <Toaster position="top-right" />
+            <NotificationManager />
+            <Routes>
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Navigate to="/dashboard" />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="sessions" element={<Sessions />} />
+                <Route path="calendar" element={<Calendar />} />
+                <Route path="members" element={<Members />} />
+                <Route path="goals" element={<Goals />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="admin" element={<AdminPanel />} />
+                <Route path="admin/pace-groups" element={<StandardPaceGroups />} />
+                <Route path="analytics" element={<Analytics />} />
+              </Route>
+            </Routes>
+          </div>
+        </Router>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

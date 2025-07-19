@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { DISTANCE_UNITS } from '../utils/unitConversion';
 
 export const settingsService = {
   // Get club settings
@@ -23,6 +24,7 @@ export const settingsService = {
             secondaryColor: '#8b5cf6',
             description: 'A community of passionate runners pushing boundaries together.',
             website: '',
+            distanceUnit: DISTANCE_UNITS.KILOMETERS, // Default to kilometers
             socialMedia: {
               facebook: '',
               instagram: '',
@@ -44,6 +46,7 @@ export const settingsService = {
         secondaryColor: data.secondary_color,
         description: data.description,
         website: data.website,
+        distanceUnit: data.distance_unit || DISTANCE_UNITS.KILOMETERS,
         socialMedia: data.social_media || {
           facebook: '',
           instagram: '',
@@ -64,6 +67,7 @@ export const settingsService = {
         secondaryColor: '#8b5cf6',
         description: 'A community of passionate runners pushing boundaries together.',
         website: '',
+        distanceUnit: DISTANCE_UNITS.KILOMETERS, // Default to kilometers
         socialMedia: {
           facebook: '',
           instagram: '',
@@ -90,6 +94,7 @@ export const settingsService = {
           secondary_color: settings.secondaryColor,
           description: settings.description,
           website: settings.website,
+          distance_unit: settings.distanceUnit || DISTANCE_UNITS.KILOMETERS,
           social_media: settings.socialMedia,
           updated_at: new Date().toISOString()
         }]);

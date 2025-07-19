@@ -6,11 +6,12 @@ import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { paceGroupService } from '../services/paceGroupService';
 import { settingsService } from '../services/settingsService';
+import { DISTANCE_UNITS } from '../utils/unitConversion';
 
 const {
   FiShield, FiUsers, FiSettings, FiActivity, FiBell, FiBarChart3,
   FiCheck, FiX, FiEdit, FiTrash2, FiPlus, FiDownload, FiUpload,
-  FiClock, FiSave, FiList, FiImage, FiGlobe, FiHash
+  FiClock, FiSave, FiList, FiImage, FiGlobe, FiHash, FiMapPin
 } = FiIcons;
 
 function AdminPanel() {
@@ -38,6 +39,7 @@ function AdminPanel() {
     secondaryColor: '#8b5cf6',
     description: 'A community of passionate runners pushing boundaries together.',
     website: '',
+    distanceUnit: DISTANCE_UNITS.KILOMETERS, // Default to kilometers
     socialMedia: {
       facebook: '',
       instagram: '',
@@ -540,8 +542,27 @@ function AdminPanel() {
                           placeholder="https://yourclub.com"
                         />
                       </div>
-                      
-                      <div />
+
+                      {/* Distance Unit Setting */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center space-x-2">
+                            <SafeIcon icon={FiMapPin} className="w-4 h-4" />
+                            <span>Distance Unit</span>
+                          </div>
+                        </label>
+                        <select
+                          value={clubSettings.distanceUnit}
+                          onChange={(e) => setClubSettings({...clubSettings, distanceUnit: e.target.value})}
+                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value={DISTANCE_UNITS.KILOMETERS}>Kilometers (km)</option>
+                          <option value={DISTANCE_UNITS.MILES}>Miles (mi)</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Distances and paces will be converted and displayed using this unit
+                        </p>
+                      </div>
                       
                       {/* Social Media */}
                       <div className="md:col-span-2">

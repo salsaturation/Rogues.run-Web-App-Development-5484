@@ -2,22 +2,30 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { useSettings } from '../contexts/SettingsContext';
+import { formatDistanceWithUnit, convertDistance, DISTANCE_UNITS } from '../utils/unitConversion';
 
 const { FiCalendar, FiClock, FiMapPin, FiUsers, FiEdit, FiTrash2 } = FiIcons;
 
 function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending }) {
+  const { distanceUnit } = useSettings();
+
   const getStatusColor = (status) => {
     switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Convert distance if needed
+  const displayDistance = session.totalDistance 
+    ? formatDistanceWithUnit(
+        convertDistance(session.totalDistance, DISTANCE_UNITS.KILOMETERS, distanceUnit), 
+        distanceUnit
+      )
+    : null;
 
   return (
     <motion.div
@@ -29,7 +37,6 @@ function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">{session.title}</h3>
           <p className="text-gray-600 text-sm mb-3">{session.description}</p>
-          
           <div className="space-y-2">
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <SafeIcon icon={FiCalendar} className="w-4 h-4" />
@@ -41,13 +48,17 @@ function SessionCard({ session, onJoin, onEdit, onDelete, canEdit, userAttending
               <SafeIcon icon={FiMapPin} className="w-4 h-4" />
               <span>{session.location}</span>
             </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <SafeIcon icon={FiUsers} className="w-4 h-4" />
-              <span>{session.attendees?.length || 0} / {session.maxAttendees} attendees</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <SafeIcon icon={FiUsers} className="w-4 h-4" />
+                <span>{session.attendees?.length || 0} / {session.maxAttendees} attendees</span>
+              </div>
+              {displayDistance && (
+                <span className="text-sm text-gray-500">{displayDistance}</span>
+              )}
             </div>
           </div>
         </div>
-        
         <div className="flex items-center space-x-2">
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
             {session.status}

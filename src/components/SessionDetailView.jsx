@@ -7,8 +7,16 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { sessionService } from '../services/sessionService';
 import PaceGroupManager from './PaceGroupManager';
+import { 
+  formatPaceWithUnit, 
+  formatDistanceWithUnit,
+  convertPace,
+  convertDistance,
+  DISTANCE_UNITS 
+} from '../utils/unitConversion';
 
 // Fix Leaflet marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -19,31 +27,23 @@ L.Icon.Default.mergeOptions({
 });
 
 const {
-  FiClock,
-  FiCalendar,
-  FiMapPin,
-  FiUsers,
-  FiMessageSquare,
-  FiSend,
-  FiThumbsUp,
-  FiActivity,
-  FiArrowUp,
-  FiArrowDown,
-  FiList,
-  FiAlertCircle,
-  FiEdit,
-  FiTrash2,
-  FiX,
-  FiChevronDown,
-  FiChevronUp,
-  FiBell,
-  FiShare2,
-  FiUser,
-  FiInfo
+  FiClock, FiCalendar, FiMapPin, FiUsers, FiMessageSquare, FiSend, FiThumbsUp,
+  FiActivity, FiArrowUp, FiArrowDown, FiList, FiAlertCircle, FiEdit, FiTrash2,
+  FiX, FiChevronDown, FiChevronUp, FiBell, FiShare2, FiUser, FiInfo
 } = FiIcons;
 
-function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAttending, userInterested, onToggleInterest }) {
+function SessionDetailView({
+  session,
+  onJoin,
+  onEdit,
+  onDelete,
+  canEdit,
+  userAttending,
+  userInterested,
+  onToggleInterest
+}) {
   const { user } = useAuth();
+  const { distanceUnit } = useSettings();
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
@@ -80,10 +80,18 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
     }
   };
 
+  // Format pace based on the selected unit
   const formatPace = (pace) => {
-    const minutes = Math.floor(pace);
-    const seconds = Math.round((pace - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (!pace) return 'N/A';
+    const convertedPace = convertPace(pace, DISTANCE_UNITS.KILOMETERS, distanceUnit);
+    return formatPaceWithUnit(convertedPace, distanceUnit);
+  };
+
+  // Format distance based on the selected unit
+  const formatDistance = (distance) => {
+    if (!distance) return 'N/A';
+    const convertedDistance = convertDistance(distance, DISTANCE_UNITS.KILOMETERS, distanceUnit);
+    return formatDistanceWithUnit(convertedDistance, distanceUnit);
   };
 
   const getRunTypeColor = (type) => {
@@ -136,7 +144,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
           <div>
             <div className="flex items-center space-x-3 mb-2">
               <h1 className="text-2xl font-bold text-gray-900">{session.title}</h1>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status || 'confirmed')}`}>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status || 'confirmed')}`}>
                 {session.status || 'confirmed'}
               </span>
             </div>
@@ -154,7 +162,9 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
           <div className="flex space-x-2">
             <button
               onClick={() => onToggleInterest(session.id)}
-              className={`p-2 rounded-full ${userInterested ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`p-2 rounded-full ${
+                userInterested ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
               title={userInterested ? 'Interested' : 'Mark as interested'}
             >
               <SafeIcon icon={FiThumbsUp} className="w-5 h-5" />
@@ -167,7 +177,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
             </button>
           </div>
         </div>
-        
+
         {/* Description */}
         <div className="mt-4">
           <p className="text-gray-700">
@@ -190,7 +200,9 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
           <button
             onClick={() => setActiveTab('details')}
             className={`flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === 'details'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <SafeIcon icon={FiInfo} className="w-4 h-4" />
@@ -199,7 +211,9 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
           <button
             onClick={() => setActiveTab('paceGroups')}
             className={`flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'paceGroups' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === 'paceGroups'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <SafeIcon icon={FiActivity} className="w-4 h-4" />
@@ -208,7 +222,9 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
           <button
             onClick={() => setActiveTab('discussion')}
             className={`flex items-center space-x-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'discussion' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === 'discussion'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
             <SafeIcon icon={FiMessageSquare} className="w-4 h-4" />
@@ -244,7 +260,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Map */}
                 {hasLocation && (
                   <div className="h-48 rounded-lg overflow-hidden">
@@ -254,19 +270,19 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       />
                       <Marker position={position}>
-                        <Popup>
-                          {session.startLocationName || session.location || 'Meeting point'}
-                        </Popup>
+                        <Popup>{session.startLocationName || session.location || 'Meeting point'}</Popup>
                       </Marker>
                     </MapContainer>
                   </div>
                 )}
-                
+
                 {/* Run Details */}
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
                   <div className="flex flex-col items-start">
                     <span className="text-sm text-gray-500">Distance</span>
-                    <span className="font-medium text-gray-900">{session.totalDistance || '-'} km</span>
+                    <span className="font-medium text-gray-900">
+                      {session.totalDistance ? formatDistance(session.totalDistance) : '-'}
+                    </span>
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="text-sm text-gray-500">Route Type</span>
@@ -285,7 +301,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     </span>
                   </div>
                 </div>
-                
+
                 {/* Pace Range */}
                 {(session.paceMin || session.paceMax) && (
                   <div className="pt-3 border-t border-gray-100">
@@ -293,12 +309,12 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <SafeIcon icon={FiArrowDown} className="w-4 h-4 text-green-600" />
-                        <span className="text-sm text-gray-700">{formatPace(session.paceMin || 5)} min/km</span>
+                        <span className="text-sm text-gray-700">{formatPace(session.paceMin || 5)}</span>
                       </div>
                       <span className="text-gray-400">to</span>
                       <div className="flex items-center space-x-2">
                         <SafeIcon icon={FiArrowUp} className="w-4 h-4 text-red-600" />
-                        <span className="text-sm text-gray-700">{formatPace(session.paceMax || 6)} min/km</span>
+                        <span className="text-sm text-gray-700">{formatPace(session.paceMax || 6)}</span>
                       </div>
                     </div>
                   </div>
@@ -331,15 +347,11 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                           : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}
                     >
-                      {userAttending
-                        ? 'Leave Session'
-                        : session.attendeeCount >= session.maxAttendees
-                        ? 'Session Full'
-                        : 'Join Session'}
+                      {userAttending ? 'Leave Session' : session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Progress Bar */}
                 <div>
                   <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
@@ -353,7 +365,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     {session.waitlistEnabled && <span>Waitlist enabled</span>}
                   </div>
                 </div>
-                
+
                 {/* Attendees List */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -366,7 +378,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                       <SafeIcon icon={showAttendees ? FiChevronUp : FiChevronDown} className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   {session.attendees && session.attendees.length > 0 ? (
                     <div className="space-y-2">
                       {/* Always show first 3 */}
@@ -395,7 +407,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     <p className="text-sm text-gray-500">No attendees yet</p>
                   )}
                 </div>
-                
+
                 {/* Interested Users */}
                 {session.interestedUsers && session.interestedUsers.length > 0 && (
                   <div className="pt-3 border-t border-gray-100">
@@ -419,7 +431,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                   </div>
                 )}
               </div>
-              
+
               {/* Admin Actions */}
               {canEdit && (
                 <div className="flex space-x-2 mt-6 pt-4 border-t border-gray-200">
@@ -457,7 +469,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                     </div>
                   </div>
                 )}
-                
+
                 {/* Required Gear */}
                 {session.requiredGear && session.requiredGear.length > 0 && (
                   <div>
@@ -482,8 +494,8 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
 
         {activeTab === 'paceGroups' && (
           <div className="py-2">
-            <PaceGroupManager 
-              sessionId={session.id} 
+            <PaceGroupManager
+              sessionId={session.id}
               sessionDate={session.date}
               isPastSession={isPastSession}
               canManage={canEdit}
@@ -503,7 +515,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                 <span>Add Comment</span>
               </button>
             </div>
-            
+
             {/* Comment Form */}
             {showCommentForm && (
               <form onSubmit={handleAddComment} className="mb-4">
@@ -540,7 +552,7 @@ function SessionDetailView({ session, onJoin, onEdit, onDelete, canEdit, userAtt
                 </div>
               </form>
             )}
-            
+
             {/* Comments List */}
             <div className="space-y-4">
               {comments.length > 0 ? (
