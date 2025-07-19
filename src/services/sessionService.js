@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { paceGroupService } from './paceGroupService';
 
 export const sessionService = {
   // Get all sessions with attendee count
@@ -10,14 +11,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email),
+          creator:users_rogues_7a9k2m!created_by(name, email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m(name, email, picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m(name, email, picture)
           )
         `)
         .order('session_date', { ascending: true });
@@ -70,14 +71,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email),
+          creator:users_rogues_7a9k2m!created_by(name, email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m(name, email, picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m(name, email, picture)
           )
         `)
         .eq('id', sessionId)
@@ -145,7 +146,7 @@ export const sessionService = {
             .select('id')
             .eq('is_admin', true)
             .maybeSingle();
-
+          
           createdBy = adminUser?.id || uuidv4();
         } else {
           createdBy = userData.id;
@@ -163,6 +164,9 @@ export const sessionService = {
           requiredGear = requiredGear ? [requiredGear] : [];
         }
       }
+
+      // Extract pace groups from session data
+      const paceGroups = sessionData.paceGroups || [];
 
       // Prepare session data for insert
       const sessionInsertData = {
@@ -198,6 +202,27 @@ export const sessionService = {
         .single();
 
       if (error) throw error;
+
+      // Create pace groups for the session
+      if (paceGroups && paceGroups.length > 0) {
+        for (const group of paceGroups) {
+          try {
+            await paceGroupService.createPaceGroup({
+              sessionId: data.id,
+              name: group.name,
+              minPace: group.minPace,
+              maxPace: group.maxPace,
+              description: group.description,
+              requiredPacers: group.requiredPacers,
+              shadowSlots: group.shadowSlots
+            });
+          } catch (groupError) {
+            console.error('Failed to create pace group:', groupError);
+            // Continue creating other groups even if one fails
+          }
+        }
+      }
+
       toast.success('Session created successfully!');
       return data;
     } catch (error) {
@@ -250,19 +275,25 @@ export const sessionService = {
           .eq('user_id', userUuid);
 
         if (error) throw error;
+
         toast.success('Left session successfully');
         return false; // Not joined
       } else {
         // Join session
         const { error } = await supabase
           .from('session_attendees_rogues_7a9k2m')
-          .insert([{ session_id: sessionId, user_id: userUuid }]);
+          .insert([{
+            session_id: sessionId,
+            user_id: userUuid
+          }]);
 
         if (error) throw error;
 
         // Update user's session count
         try {
-          await supabase.rpc('increment_sessions_attended', { user_id: userUuid });
+          await supabase.rpc('increment_sessions_attended', {
+            user_id: userUuid
+          });
         } catch (rpcError) {
           console.error('Failed to update session count:', rpcError);
           // Continue even if this fails
@@ -320,15 +351,20 @@ export const sessionService = {
           .eq('user_id', userUuid);
 
         if (error) throw error;
+
         toast.success('Removed from interested list');
         return false; // Not interested
       } else {
         // Add interest
         const { error } = await supabase
           .from('session_interested_users_rogues_7a9k2m')
-          .insert([{ session_id: sessionId, user_id: userUuid }]);
+          .insert([{
+            session_id: sessionId,
+            user_id: userUuid
+          }]);
 
         if (error) throw error;
+
         toast.success('Added to interested list');
         return true; // Interested
       }
@@ -389,6 +425,9 @@ export const sessionService = {
         }
       }
 
+      // Extract pace groups from updates
+      const paceGroups = updates.paceGroups || [];
+
       const { error } = await supabase
         .from('sessions_rogues_7a9k2m')
         .update({
@@ -419,6 +458,39 @@ export const sessionService = {
         .eq('id', sessionId);
 
       if (error) throw error;
+
+      // Update pace groups if provided
+      if (paceGroups && paceGroups.length > 0) {
+        // Get existing pace groups for this session
+        const existingGroups = await paceGroupService.getPaceGroupsBySessionId(sessionId);
+        
+        // Delete existing groups
+        for (const existingGroup of existingGroups) {
+          try {
+            await paceGroupService.deletePaceGroup(existingGroup.id);
+          } catch (deleteError) {
+            console.error('Failed to delete existing pace group:', deleteError);
+          }
+        }
+
+        // Create new groups
+        for (const group of paceGroups) {
+          try {
+            await paceGroupService.createPaceGroup({
+              sessionId: sessionId,
+              name: group.name,
+              minPace: group.minPace,
+              maxPace: group.maxPace,
+              description: group.description,
+              requiredPacers: group.requiredPacers,
+              shadowSlots: group.shadowSlots
+            });
+          } catch (createError) {
+            console.error('Failed to create pace group:', createError);
+          }
+        }
+      }
+
       toast.success('Session updated successfully');
     } catch (error) {
       console.error('Failed to update session:', error);
@@ -436,6 +508,7 @@ export const sessionService = {
         .eq('id', sessionId);
 
       if (error) throw error;
+
       toast.success('Session deleted successfully');
     } catch (error) {
       console.error('Failed to delete session:', error);
@@ -451,18 +524,13 @@ export const sessionService = {
         .from('session_attendees_rogues_7a9k2m')
         .select(`
           session:sessions_rogues_7a9k2m(
-            id,
-            title,
-            description,
-            session_date,
-            session_time,
-            location,
-            status
+            id, title, description, session_date, session_time, location, status
           )
         `)
         .eq('user_id', userId);
 
       if (error) throw error;
+
       return data.map(item => item.session);
     } catch (error) {
       console.error('Failed to fetch user sessions:', error);
@@ -514,7 +582,6 @@ export const sessionService = {
           // Match by pace range and optionally run type
           const matchesPace = prefPace >= session.pace_min && prefPace <= session.pace_max;
           const matchesType = !session.run_type || !pref.runType || session.run_type === pref.runType;
-          
           return matchesPace && matchesType;
         });
       });
@@ -543,12 +610,13 @@ export const sessionService = {
         .from('session_comments_rogues_7a9k2m')
         .select(`
           *,
-          user:users_rogues_7a9k2m!user_id(name,email,picture)
+          user:users_rogues_7a9k2m!user_id(name, email, picture)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error('Failed to fetch session comments:', error);
@@ -587,6 +655,7 @@ export const sessionService = {
         }]);
 
       if (error) throw error;
+
       toast.success('Comment added successfully');
       return true;
     } catch (error) {
