@@ -6,20 +6,42 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import 'react-phone-number-input/style.css';
 
-const { FiActivity, FiPhone, FiCheck } = FiIcons;
+const { FiActivity, FiPhone, FiCheck, FiMail } = FiIcons;
 
 function Login() {
-  const { loginWithFacebook, loginWithPhone } = useAuth();
+  const { loginWithFacebook, loginWithPhone, loginWithEmail } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [step, setStep] = useState('login'); // 'login', 'verify'
   const [loading, setLoading] = useState(false);
+  const [loginType, setLoginType] = useState('email'); // 'email', 'phone', 'facebook'
 
-  // Custom Facebook Login implementation
+  // Demo login credentials
+  const demoUsers = [
+    { email: 'admin@rogues.run', role: 'Admin' },
+    { email: 'publisher@rogues.run', role: 'Publisher' },
+    { email: 'member@rogues.run', role: 'Member' }
+  ];
+
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+
+    setLoading(true);
+    try {
+      await loginWithEmail(email, 'demo-password');
+    } catch (error) {
+      console.error('Email login error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFacebookLogin = async () => {
     setLoading(true);
     try {
-      // Demo Facebook response - in production, replace with actual Facebook SDK
+      // Demo Facebook response
       const demoResponse = {
         id: 'facebook_user_' + Date.now(),
         name: 'Facebook User',
@@ -31,7 +53,6 @@ function Login() {
         },
         accessToken: 'demo_access_token'
       };
-      
       await loginWithFacebook(demoResponse);
     } catch (error) {
       console.error('Facebook login error:', error);
@@ -57,7 +78,6 @@ function Login() {
 
   const handleVerification = async (e) => {
     e.preventDefault();
-    // Demo verification - in production, verify with Firebase
     if (verificationCode === '123456') {
       setStep('success');
       setTimeout(() => {
@@ -86,14 +106,96 @@ function Login() {
 
           {step === 'login' && (
             <div className="space-y-6">
-              {/* Facebook Login */}
-              <button
-                onClick={handleFacebookLogin}
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Connecting...' : 'Continue with Facebook'}
-              </button>
+              {/* Demo Users Info */}
+              <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                <h3 className="font-medium text-blue-900 mb-2">Demo Users:</h3>
+                <div className="space-y-1 text-sm text-blue-700">
+                  {demoUsers.map((user, index) => (
+                    <div key={index} className="flex justify-between">
+                      <span>{user.email}</span>
+                      <span className="font-medium">({user.role})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Login Type Selector */}
+              <div className="flex space-x-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setLoginType('email')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    loginType === 'email' 
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Email
+                </button>
+                <button
+                  onClick={() => setLoginType('phone')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    loginType === 'phone' 
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Phone
+                </button>
+              </div>
+
+              {/* Email Login */}
+              {loginType === 'email' && (
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter email address"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!email || loading}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    <SafeIcon icon={FiMail} className="w-5 h-5" />
+                    <span>{loading ? 'Signing in...' : 'Sign In with Email'}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Phone Login */}
+              {loginType === 'phone' && (
+                <form onSubmit={handlePhoneLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number
+                    </label>
+                    <PhoneInput
+                      international
+                      defaultCountry="US"
+                      value={phoneNumber}
+                      onChange={setPhoneNumber}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!phoneNumber || loading}
+                    className="w-full bg-gray-900 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    <SafeIcon icon={FiPhone} className="w-5 h-5" />
+                    <span>{loading ? 'Sending...' : 'Continue with Phone'}</span>
+                  </button>
+                </form>
+              )}
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -104,30 +206,14 @@ function Login() {
                 </div>
               </div>
 
-              {/* Phone Login */}
-              <form onSubmit={handlePhoneLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <PhoneInput
-                    international
-                    defaultCountry="US"
-                    value={phoneNumber}
-                    onChange={setPhoneNumber}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!phoneNumber || loading}
-                  className="w-full bg-gray-900 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  <SafeIcon icon={FiPhone} className="w-5 h-5" />
-                  <span>{loading ? 'Sending...' : 'Continue with Phone'}</span>
-                </button>
-              </form>
+              {/* Facebook Login */}
+              <button
+                onClick={handleFacebookLogin}
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Connecting...' : 'Continue with Facebook'}
+              </button>
 
               <p className="text-xs text-gray-500 text-center">
                 New phone users require admin approval to join the community.
@@ -145,7 +231,6 @@ function Login() {
                   We've sent a verification code to {phoneNumber}
                 </p>
               </div>
-
               <form onSubmit={handleVerification} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -168,7 +253,6 @@ function Login() {
                   {loading ? 'Verifying...' : 'Verify Code'}
                 </button>
               </form>
-
               <p className="text-xs text-gray-500 text-center">
                 Demo code: 123456
               </p>

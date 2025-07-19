@@ -1,61 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { sessionService } from '../services/sessionService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-const { 
+const {
   FiPlus, FiEdit, FiTrash2, FiMapPin, FiClock, FiUsers, FiCalendar,
   FiFilter, FiSearch, FiMoreVertical, FiCheck, FiX
 } = FiIcons;
 
 function Sessions() {
   const { user } = useAuth();
-  const [sessions, setSessions] = useState([
-    {
-      id: 1,
-      title: 'Morning Run',
-      description: 'Easy paced morning run through the park',
-      date: '2024-01-20',
-      time: '07:00',
-      location: 'Central Park',
-      maxAttendees: 20,
-      attendees: ['John', 'Sarah', 'Mike', 'Lisa'],
-      status: 'confirmed',
-      createdBy: 'admin'
-    },
-    {
-      id: 2,
-      title: 'Hill Training',
-      description: 'Intense hill training session for building strength',
-      date: '2024-01-22',
-      time: '18:30',
-      location: 'Hill Park',
-      maxAttendees: 15,
-      attendees: ['John', 'Mike'],
-      status: 'confirmed',
-      createdBy: 'admin'
-    },
-    {
-      id: 3,
-      title: 'Weekend Long Run',
-      description: 'Long distance run for endurance building',
-      date: '2024-01-25',
-      time: '08:00',
-      location: 'Riverside Trail',
-      maxAttendees: 25,
-      attendees: ['Sarah', 'Lisa', 'Tom', 'Anna'],
-      status: 'pending',
-      createdBy: 'publisher'
-    }
-  ]);
-
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-
   const [newSession, setNewSession] = useState({
     title: '',
     description: '',
@@ -65,6 +28,22 @@ function Sessions() {
     maxAttendees: 20
   });
 
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const loadSessions = async () => {
+    try {
+      setLoading(true);
+      const data = await sessionService.getSessions();
+      setSessions(data);
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredSessions = sessions.filter(session => {
     const matchesSearch = session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          session.location.toLowerCase().includes(searchTerm.toLowerCase());
@@ -72,62 +51,70 @@ function Sessions() {
     return matchesSearch && matchesFilter;
   });
 
-  const handleCreateSession = (e) => {
+  const handleCreateSession = async (e) => {
     e.preventDefault();
     if (!user?.canPublish && !user?.isAdmin) {
       toast.error('You need permission to create sessions');
       return;
     }
 
-    const session = {
-      id: Date.now(),
-      ...newSession,
-      attendees: [],
-      status: 'confirmed',
-      createdBy: user.id
-    };
-
-    setSessions([...sessions, session]);
-    setNewSession({
-      title: '',
-      description: '',
-      date: '',
-      time: '',
-      location: '',
-      maxAttendees: 20
-    });
-    setShowCreateModal(false);
-    toast.success('Session created successfully!');
+    try {
+      await sessionService.createSession(newSession, user.id);
+      setNewSession({
+        title: '',
+        description: '',
+        date: '',
+        time: '',
+        location: '',
+        maxAttendees: 20
+      });
+      setShowCreateModal(false);
+      loadSessions();
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
   };
 
-  const handleJoinSession = (sessionId) => {
-    setSessions(sessions.map(session => {
-      if (session.id === sessionId) {
-        const isJoined = session.attendees.includes(user.name);
-        return {
-          ...session,
-          attendees: isJoined 
-            ? session.attendees.filter(name => name !== user.name)
-            : [...session.attendees, user.name]
-        };
-      }
-      return session;
-    }));
-    toast.success('Attendance updated!');
+  const handleJoinSession = async (sessionId) => {
+    try {
+      await sessionService.joinSession(sessionId, user.id);
+      loadSessions();
+    } catch (error) {
+      console.error('Failed to join session:', error);
+    }
   };
 
-  const handleDeleteSession = (sessionId) => {
+  const handleDeleteSession = async (sessionId) => {
     if (!user?.isAdmin) {
       toast.error('Only admins can delete sessions');
       return;
     }
-    setSessions(sessions.filter(session => session.id !== sessionId));
-    toast.success('Session deleted');
+
+    if (window.confirm('Are you sure you want to delete this session?')) {
+      try {
+        await sessionService.deleteSession(sessionId);
+        loadSessions();
+      } catch (error) {
+        console.error('Failed to delete session:', error);
+      }
+    }
   };
 
   const canEditSession = (session) => {
     return user?.isAdmin || session.createdBy === user.id;
   };
+
+  const isUserAttending = (session) => {
+    return session.attendees.some(attendee => attendee.user_id === user.id);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -140,7 +127,7 @@ function Sessions() {
         {(user?.canPublish || user?.isAdmin) && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn-primary text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
           >
             <SafeIcon icon={FiPlus} className="w-5 h-5" />
             <span>Create Session</span>
@@ -188,11 +175,10 @@ function Sessions() {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{session.title}</h3>
                 <p className="text-gray-600 text-sm mb-3">{session.description}</p>
-                
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 text-sm text-gray-500">
                     <SafeIcon icon={FiCalendar} className="w-4 h-4" />
-                    <span>{session.date}</span>
+                    <span>{new Date(session.date).toLocaleDateString()}</span>
                     <SafeIcon icon={FiClock} className="w-4 h-4 ml-2" />
                     <span>{session.time}</span>
                   </div>
@@ -202,16 +188,15 @@ function Sessions() {
                   </div>
                   <div className="flex items-center space-x-2 text-sm text-gray-500">
                     <SafeIcon icon={FiUsers} className="w-4 h-4" />
-                    <span>{session.attendees.length} / {session.maxAttendees} attendees</span>
+                    <span>{session.attendeeCount} / {session.maxAttendees} attendees</span>
                   </div>
                 </div>
               </div>
-              
               <div className="flex items-center space-x-2">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   session.status === 'confirmed' 
                     ? 'bg-green-100 text-green-800'
-                    : session.status === 'pending'
+                    : session.status === 'pending' 
                     ? 'bg-yellow-100 text-yellow-800'
                     : 'bg-red-100 text-red-800'
                 }`}>
@@ -225,11 +210,16 @@ function Sessions() {
               <div className="mb-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">Attendees:</p>
                 <div className="flex flex-wrap gap-2">
-                  {session.attendees.map((attendee, i) => (
+                  {session.attendees.slice(0, 5).map((attendee, i) => (
                     <span key={i} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                      {attendee}
+                      {attendee.user?.name || 'Unknown'}
                     </span>
                   ))}
+                  {session.attendees.length > 5 && (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                      +{session.attendees.length - 5} more
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -238,26 +228,36 @@ function Sessions() {
             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
               <button
                 onClick={() => handleJoinSession(session.id)}
+                disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  session.attendees.includes(user?.name)
+                  isUserAttending(session)
                     ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : session.attendeeCount >= session.maxAttendees
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                 }`}
               >
-                {session.attendees.includes(user?.name) ? 'Leave' : 'Join'}
+                {isUserAttending(session) 
+                  ? 'Leave' 
+                  : session.attendeeCount >= session.maxAttendees 
+                  ? 'Full' 
+                  : 'Join'
+                }
               </button>
-              
+
               {canEditSession(session) && (
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setEditingSession(session)}
                     className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit session"
                   >
                     <SafeIcon icon={FiEdit} className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteSession(session.id)}
                     className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete session"
                   >
                     <SafeIcon icon={FiTrash2} className="w-4 h-4" />
                   </button>
@@ -358,7 +358,7 @@ function Sessions() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 btn-primary text-white px-4 py-2 rounded-lg font-medium"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
                   Create Session
                 </button>

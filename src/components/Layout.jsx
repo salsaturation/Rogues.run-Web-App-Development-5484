@@ -5,9 +5,9 @@ import { useAuth } from '../contexts/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { 
+const {
   FiHome, FiCalendar, FiUsers, FiSettings, FiLogOut, FiMenu, FiX,
-  FiActivity, FiShield, FiBell, FiUser
+  FiActivity, FiShield, FiBell, FiUser, FiTarget
 } = FiIcons;
 
 function Layout() {
@@ -20,6 +20,7 @@ function Layout() {
     { name: 'Sessions', href: '/sessions', icon: FiActivity },
     { name: 'Calendar', href: '/calendar', icon: FiCalendar },
     { name: 'Members', href: '/members', icon: FiUsers },
+    { name: 'Goals', href: '/goals', icon: FiTarget },
     { name: 'Profile', href: '/profile', icon: FiUser },
   ];
 
@@ -33,14 +34,14 @@ function Layout() {
     <div className="flex h-screen bg-gray-100">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <motion.div 
+      <motion.div
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
@@ -70,9 +71,9 @@ function Layout() {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
                 {user?.picture ? (
-                  <img 
-                    src={user.picture} 
-                    alt={user.name} 
+                  <img
+                    src={user.picture}
+                    alt={user.name}
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (

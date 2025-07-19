@@ -1,98 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { memberService } from '../services/memberService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const { 
   FiUsers, FiSearch, FiFilter, FiMoreVertical, FiMail, FiPhone, 
-  FiCalendar, FiMapPin, FiShield, FiEdit, FiCheck, FiX, FiUserPlus, FiClock
+  FiCalendar, FiMapPin, FiShield, FiEdit, FiCheck, FiX, FiUserPlus, 
+  FiClock, FiSend
 } = FiIcons;
 
 function Members() {
   const { user } = useAuth();
+  const [members, setMembers] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [sortBy, setSortBy] = useState('name');
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteData, setInviteData] = useState({
+    email: '',
+    name: '',
+    phone: ''
+  });
 
-  const [members, setMembers] = useState([
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john@example.com',
-      phone: '+1234567890',
-      picture: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      joinDate: '2023-01-15',
-      lastActive: '2024-01-18',
-      sessionsAttended: 45,
-      isAdmin: true,
-      canPublish: true,
-      isApproved: true,
-      provider: 'facebook',
-      location: 'New York, NY'
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      email: 'sarah@example.com',
-      phone: '+1234567891',
-      picture: 'https://images.unsplash.com/photo-1494790108755-2616b9512fa6?w=100&h=100&fit=crop&crop=face',
-      joinDate: '2023-03-20',
-      lastActive: '2024-01-19',
-      sessionsAttended: 32,
-      isAdmin: false,
-      canPublish: true,
-      isApproved: true,
-      provider: 'facebook',
-      location: 'Brooklyn, NY'
-    },
-    {
-      id: 3,
-      name: 'Mike Davis',
-      email: 'mike@example.com',
-      phone: '+1234567892',
-      picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face',
-      joinDate: '2023-06-10',
-      lastActive: '2024-01-17',
-      sessionsAttended: 28,
-      isAdmin: false,
-      canPublish: false,
-      isApproved: true,
-      provider: 'phone',
-      location: 'Manhattan, NY'
-    },
-    {
-      id: 4,
-      name: 'Lisa Chen',
-      email: 'lisa@example.com',
-      phone: '+1234567893',
-      picture: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-      joinDate: '2023-09-05',
-      lastActive: '2024-01-19',
-      sessionsAttended: 15,
-      isAdmin: false,
-      canPublish: false,
-      isApproved: true,
-      provider: 'facebook',
-      location: 'Queens, NY'
-    },
-    {
-      id: 5,
-      name: 'Tom Wilson',
-      email: 'tom@example.com',
-      phone: '+1234567894',
-      picture: null,
-      joinDate: '2024-01-10',
-      lastActive: '2024-01-18',
-      sessionsAttended: 3,
-      isAdmin: false,
-      canPublish: false,
-      isApproved: false,
-      provider: 'phone',
-      location: 'Bronx, NY'
+  useEffect(() => {
+    loadMembers();
+    loadInvitations();
+  }, []);
+
+  const loadMembers = async () => {
+    try {
+      setLoading(true);
+      const data = await memberService.getMembers();
+      setMembers(data);
+    } catch (error) {
+      console.error('Failed to load members:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const loadInvitations = async () => {
+    try {
+      const data = await memberService.getInvitations();
+      setInvitations(data);
+    } catch (error) {
+      console.error('Failed to load invitations:', error);
+    }
+  };
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -120,35 +79,61 @@ function Members() {
     }
   });
 
-  const handleApproveUser = (memberId) => {
+  const handleApproveUser = async (memberId) => {
     if (!user?.isAdmin) {
       toast.error('Only admins can approve members');
       return;
     }
-    setMembers(members.map(member => 
-      member.id === memberId ? { ...member, isApproved: true } : member
-    ));
-    toast.success('Member approved successfully');
+
+    try {
+      await memberService.approveMember(memberId);
+      loadMembers();
+    } catch (error) {
+      console.error('Failed to approve user:', error);
+    }
   };
 
-  const handleRejectUser = (memberId) => {
+  const handleRejectUser = async (memberId) => {
     if (!user?.isAdmin) {
       toast.error('Only admins can reject members');
       return;
     }
-    setMembers(members.filter(member => member.id !== memberId));
-    toast.success('Member rejected');
+
+    if (window.confirm('Are you sure you want to reject this member?')) {
+      try {
+        await memberService.rejectMember(memberId);
+        loadMembers();
+      } catch (error) {
+        console.error('Failed to reject user:', error);
+      }
+    }
   };
 
-  const handleTogglePublisher = (memberId) => {
+  const handleTogglePublisher = async (memberId, currentStatus) => {
     if (!user?.isAdmin) {
       toast.error('Only admins can manage publisher permissions');
       return;
     }
-    setMembers(members.map(member => 
-      member.id === memberId ? { ...member, canPublish: !member.canPublish } : member
-    ));
-    toast.success('Publisher permissions updated');
+
+    try {
+      await memberService.togglePublisher(memberId, currentStatus);
+      loadMembers();
+    } catch (error) {
+      console.error('Failed to toggle publisher:', error);
+    }
+  };
+
+  const handleSendInvitation = async (e) => {
+    e.preventDefault();
+    
+    try {
+      await memberService.sendInvitation(inviteData, user.id);
+      setInviteData({ email: '', name: '', phone: '' });
+      setShowInviteModal(false);
+      loadInvitations();
+    } catch (error) {
+      console.error('Failed to send invitation:', error);
+    }
   };
 
   const getRoleDisplay = (member) => {
@@ -165,6 +150,14 @@ function Members() {
     return 'bg-green-100 text-green-800';
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -174,11 +167,40 @@ function Members() {
           <p className="text-gray-600">Manage community members and permissions</p>
         </div>
         <div className="flex items-center space-x-4">
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
+          >
+            <SafeIcon icon={FiSend} className="w-4 h-4" />
+            <span>Invite Member</span>
+          </button>
           <span className="text-sm text-gray-500">
             {filteredMembers.length} of {members.length} members
           </span>
         </div>
       </div>
+
+      {/* Pending Invitations */}
+      {invitations.length > 0 && (
+        <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+          <h3 className="font-semibold text-yellow-800 mb-3">Pending Invitations ({invitations.length})</h3>
+          <div className="space-y-2">
+            {invitations.slice(0, 3).map((invitation) => (
+              <div key={invitation.id} className="flex items-center justify-between text-sm">
+                <span className="text-yellow-700">
+                  {invitation.name || invitation.email} - {invitation.email}
+                </span>
+                <span className="text-yellow-600">
+                  Expires {new Date(invitation.expires_at).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+            {invitations.length > 3 && (
+              <p className="text-yellow-600 text-sm">+{invitations.length - 3} more pending...</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -282,7 +304,7 @@ function Members() {
               </div>
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm font-medium text-gray-900">
-                  {new Date(member.lastActive).toLocaleDateString()}
+                  {member.lastActive ? new Date(member.lastActive).toLocaleDateString() : 'Never'}
                 </p>
                 <p className="text-xs text-gray-500">Last Active</p>
               </div>
@@ -311,7 +333,7 @@ function Members() {
                 )}
                 {member.isApproved && !member.isAdmin && (
                   <button
-                    onClick={() => handleTogglePublisher(member.id)}
+                    onClick={() => handleTogglePublisher(member.id, member.canPublish)}
                     className={`w-full px-3 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 ${
                       member.canPublish
                         ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
@@ -375,6 +397,64 @@ function Members() {
           </div>
         </div>
       </div>
+
+      {/* Invite Member Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl p-6 w-full max-w-md"
+          >
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Invite New Member</h2>
+            <form onSubmit={handleSendInvitation} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={inviteData.email}
+                  onChange={(e) => setInviteData({...inviteData, email: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={inviteData.name}
+                  onChange={(e) => setInviteData({...inviteData, name: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={inviteData.phone}
+                  onChange={(e) => setInviteData({...inviteData, phone: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex space-x-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Send Invite
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

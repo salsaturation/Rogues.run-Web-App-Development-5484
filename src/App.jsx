@@ -10,12 +10,13 @@ import Sessions from './pages/Sessions';
 import Calendar from './pages/Calendar';
 import Members from './pages/Members';
 import Profile from './pages/Profile';
+import Goals from './pages/Goals';
 import AdminPanel from './pages/AdminPanel';
 import './App.css';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -23,13 +24,13 @@ function ProtectedRoute({ children }) {
       </div>
     );
   }
-  
+
   return user ? children : <Navigate to="/login" />;
 }
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -37,7 +38,7 @@ function PublicRoute({ children }) {
       </div>
     );
   }
-  
+
   return user ? <Navigate to="/dashboard" /> : children;
 }
 
@@ -48,21 +49,28 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <Toaster position="top-right" />
           <Routes>
-            <Route path="/login" element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            } />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }>
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
               <Route index element={<Navigate to="/dashboard" />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="sessions" element={<Sessions />} />
               <Route path="calendar" element={<Calendar />} />
               <Route path="members" element={<Members />} />
+              <Route path="goals" element={<Goals />} />
               <Route path="profile" element={<Profile />} />
               <Route path="admin" element={<AdminPanel />} />
             </Route>
