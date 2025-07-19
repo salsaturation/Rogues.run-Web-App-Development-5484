@@ -6,8 +6,18 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
 const {
-  FiHome, FiCalendar, FiUsers, FiSettings, FiLogOut, FiMenu, FiX,
-  FiActivity, FiShield, FiBell, FiUser, FiTarget
+  FiHome,
+  FiCalendar,
+  FiUsers,
+  FiSettings,
+  FiLogOut,
+  FiMenu,
+  FiX,
+  FiActivity,
+  FiShield,
+  FiBell,
+  FiUser,
+  FiTarget
 } = FiIcons;
 
 function Layout() {
@@ -42,8 +52,8 @@ function Layout() {
 
       {/* Sidebar */}
       <motion.div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 lg:relative lg:transform-none ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
         initial={false}
         animate={{ x: sidebarOpen ? 0 : -256 }}
@@ -134,7 +144,7 @@ function Layout() {
                 <SafeIcon icon={FiMenu} className="w-5 h-5" />
               </button>
               <h1 className="text-2xl font-bold text-gray-900">
-                {navigation.find(item => isActive(item.href))?.name || 'Dashboard'}
+                {navigation.find((item) => isActive(item.href))?.name || 'Dashboard'}
               </h1>
             </div>
             <div className="flex items-center space-x-4">

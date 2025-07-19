@@ -22,7 +22,7 @@ function Sessions() {
   const [newSession, setNewSession] = useState({
     title: '',
     description: '',
-    date: '',
+    date: new Date().toISOString().split('T')[0], // Default to today
     time: '',
     location: '',
     maxAttendees: 20,
@@ -47,8 +47,8 @@ function Sessions() {
 
   const filteredSessions = sessions.filter(session => {
     const matchesSearch = 
-      session.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      session.location.toLowerCase().includes(searchTerm.toLowerCase());
+      session.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      session.location?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || session.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
@@ -71,7 +71,7 @@ function Sessions() {
       setNewSession({
         title: '',
         description: '',
-        date: '',
+        date: new Date().toISOString().split('T')[0], // Reset to today
         time: '',
         location: '',
         maxAttendees: 20
@@ -85,7 +85,12 @@ function Sessions() {
 
   const handleJoinSession = async (sessionId) => {
     try {
-      await sessionService.joinSession(sessionId, user?.id || user?.email);
+      if (!user || !user.id) {
+        toast.error('You must be logged in to join sessions');
+        return;
+      }
+      
+      await sessionService.joinSession(sessionId, user.id);
       loadSessions();
     } catch (error) {
       console.error('Failed to join session:', error);
@@ -113,9 +118,11 @@ function Sessions() {
   };
 
   const isUserAttending = (session) => {
+    if (!user || !session.attendees) return false;
+    
     return session.attendees.some(attendee => 
-      attendee.user_id === user?.id || 
-      (attendee.user && attendee.user.email === user?.email)
+      attendee.user_id === user.id || 
+      (attendee.user && attendee.user.email === user.email)
     );
   };
 
@@ -214,13 +221,13 @@ function Sessions() {
                     ? 'bg-yellow-100 text-yellow-800'
                     : 'bg-red-100 text-red-800'
                 }`}>
-                  {session.status}
+                  {session.status || 'confirmed'}
                 </span>
               </div>
             </div>
 
             {/* Attendees */}
-            {session.attendees.length > 0 && (
+            {session.attendees && session.attendees.length > 0 && (
               <div className="mb-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">Attendees:</p>
                 <div className="flex flex-wrap gap-2">

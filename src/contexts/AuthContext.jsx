@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
         .from('users_rogues_7a9k2m')
         .select('*')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
       if (error || !userData) {
         throw new Error('User not found');
@@ -78,7 +78,7 @@ export function AuthProvider({ children }) {
         .from('users_rogues_7a9k2m')
         .select('id')
         .eq('email', userData.email)
-        .single();
+        .maybeSingle();
 
       if (existingUser) {
         throw new Error('User already exists');
@@ -139,7 +139,7 @@ export function AuthProvider({ children }) {
         .from('users_rogues_7a9k2m')
         .select('*')
         .eq('email', response.email)
-        .single();
+        .maybeSingle();
 
       if (existingUser && !error) {
         // User exists, log them in
@@ -190,14 +190,14 @@ export function AuthProvider({ children }) {
         .from('users_rogues_7a9k2m')
         .select('*')
         .eq('phone', phoneNumber)
-        .single();
+        .maybeSingle();
 
       if (existingUser && !error) {
         if (!existingUser.is_approved) {
           toast.error('Your account is pending admin approval');
           return null;
         }
-        
+
         const userProfile = {
           id: existingUser.id,
           name: existingUser.name,

@@ -49,7 +49,7 @@ export const goalService = {
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', 'admin@rogues.run')
-          .single();
+          .maybeSingle();
           
         if (userError || !userData) {
           // If user not found, use a default UUID

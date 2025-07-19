@@ -53,7 +53,7 @@ export const sessionService = {
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', sessionData.creatorEmail || 'admin@rogues.run')
-          .single();
+          .maybeSingle();
           
         if (userError || !userData) {
           // If user not found, use a default admin user
@@ -61,7 +61,7 @@ export const sessionService = {
             .from('users_rogues_7a9k2m')
             .select('id')
             .eq('is_admin', true)
-            .single();
+            .maybeSingle();
           
           createdBy = adminUser?.id || uuidv4();
         } else {
@@ -108,10 +108,12 @@ export const sessionService = {
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
-          .single();
+          .maybeSingle();
           
         if (userError || !userData) {
-          throw new Error('User not found');
+          // If user not found, create a temporary UUID
+          toast.error('User not found in database');
+          return false;
         }
         
         userUuid = userData.id;
@@ -120,12 +122,16 @@ export const sessionService = {
       }
       
       // Check if already joined
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from('session_attendees_rogues_7a9k2m')
         .select('id')
         .eq('session_id', sessionId)
         .eq('user_id', userUuid)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking attendance:', checkError);
+      }
 
       if (existing) {
         // Leave session
@@ -150,11 +156,18 @@ export const sessionService = {
         if (error) throw error;
 
         // Update user's session count
-        await supabase.rpc('increment_sessions_attended', { user_id: userUuid });
+        try {
+          await supabase.rpc('increment_sessions_attended', { user_id: userUuid });
+        } catch (rpcError) {
+          console.error('Failed to update session count:', rpcError);
+          // Continue even if this fails
+        }
+        
         toast.success('Joined session successfully');
         return true; // Joined
       }
     } catch (error) {
+      console.error('Session joining error:', error);
       toast.error('Failed to update session attendance: ' + error.message);
       throw error;
     }
