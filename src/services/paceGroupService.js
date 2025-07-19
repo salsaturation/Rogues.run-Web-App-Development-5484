@@ -36,10 +36,13 @@ export const paceGroupService = {
     }
   },
 
-  // Get suggested pace groups for a session
+  // Get suggested pace groups for a session - fallback method that doesn't rely on the Supabase function
   async getSuggestedPaceGroups(sessionMinPace, sessionMaxPace, distanceUnit) {
     try {
-      // If the paces are in miles, convert to km for storage
+      // Get all standard pace groups first
+      const allGroups = await this.getStandardPaceGroups();
+      
+      // If the paces are in miles, convert to km for comparison
       let minPaceKm = sessionMinPace;
       let maxPaceKm = sessionMaxPace;
       
@@ -48,37 +51,20 @@ export const paceGroupService = {
         maxPaceKm = convertPace(sessionMaxPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
       }
       
-      const { data, error } = await supabase
-        .rpc('suggest_pace_groups_for_session', {
-          session_min_pace: minPaceKm,
-          session_max_pace: maxPaceKm
-        });
-      
-      if (error) {
-        console.error('RPC Error:', error);
-        // Fallback to getting all groups and filtering manually
-        const allGroups = await this.getStandardPaceGroups();
-        return allGroups.filter(group => {
-          const groupMinKm = distanceUnit === DISTANCE_UNITS.MILES ? 
-            convertPace(group.minPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS) : 
-            group.minPace;
-          const groupMaxKm = distanceUnit === DISTANCE_UNITS.MILES ? 
-            convertPace(group.maxPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS) : 
-            group.maxPace;
-          
-          // Check if there's any overlap between session pace and group pace
-          return (groupMinKm <= maxPaceKm && groupMaxKm >= minPaceKm);
-        });
-      }
+      // Filter groups manually
+      const suggestedGroups = allGroups.filter(group => {
+        // Check if there's any overlap between session pace and group pace
+        return (group.minPace <= maxPaceKm && group.maxPace >= minPaceKm);
+      });
       
       // Convert the pace values back to the user's preferred unit
-      return data.map(group => {
-        let minPaceDisplay = group.min_pace;
-        let maxPaceDisplay = group.max_pace;
+      return suggestedGroups.map(group => {
+        let minPaceDisplay = group.minPace;
+        let maxPaceDisplay = group.maxPace;
         
         if (distanceUnit === DISTANCE_UNITS.MILES) {
-          minPaceDisplay = convertPace(group.min_pace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
-          maxPaceDisplay = convertPace(group.max_pace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+          minPaceDisplay = convertPace(group.minPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+          maxPaceDisplay = convertPace(group.maxPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
         }
         
         return {

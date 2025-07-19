@@ -46,6 +46,7 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
     shadowSlots: 1
   });
   const [newGearItem, setNewGearItem] = useState('');
+  const [loadingPaceGroups, setLoadingPaceGroups] = useState(false);
 
   useEffect(() => {
     loadStandardPaceGroups();
@@ -168,12 +169,24 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
     }
     
     try {
-      // Get suggested pace groups based on the session pace range
-      const suggestedGroups = await paceGroupService.getSuggestedPaceGroups(
-        sessionData.paceMin,
-        sessionData.paceMax,
-        distanceUnit
-      );
+      setLoadingPaceGroups(true);
+      // Fallback method - filter standard pace groups manually
+      const allGroups = standardPaceGroups;
+      const suggestedGroups = allGroups.filter(group => {
+        // Convert to common unit (km) for comparison
+        let groupMinKm = group.minPace;
+        let groupMaxKm = group.maxPace;
+        let sessionMinKm = sessionData.paceMin;
+        let sessionMaxKm = sessionData.paceMax;
+        
+        if (distanceUnit === DISTANCE_UNITS.MILES) {
+          sessionMinKm = convertPace(sessionData.paceMin, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
+          sessionMaxKm = convertPace(sessionData.paceMax, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
+        }
+        
+        // Check if there's any overlap between session pace and group pace
+        return (groupMinKm <= sessionMaxKm && groupMaxKm >= sessionMinKm);
+      });
       
       if (suggestedGroups && suggestedGroups.length > 0) {
         // Clear existing selections
@@ -181,19 +194,30 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
         setPaceGroups([]);
         
         // Mark these groups as selected in the UI
-        const groupIds = suggestedGroups.map(group => group.standardGroupId || group.id);
+        const groupIds = suggestedGroups.map(group => group.id);
         setSelectedStandardGroups(groupIds);
         
         // Add these groups to the session's pace groups
-        setPaceGroups(suggestedGroups.map(group => ({
-          standardGroupId: group.id,
-          name: group.name,
-          minPace: group.minPace,
-          maxPace: group.maxPace,
-          description: group.description || '',
-          requiredPacers: 1,
-          shadowSlots: 1
-        })));
+        setPaceGroups(suggestedGroups.map(group => {
+          // Convert pace values to display unit if needed
+          let minPaceDisplay = group.minPace;
+          let maxPaceDisplay = group.maxPace;
+          
+          if (distanceUnit === DISTANCE_UNITS.MILES) {
+            minPaceDisplay = convertPace(group.minPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+            maxPaceDisplay = convertPace(group.maxPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+          }
+          
+          return {
+            standardGroupId: group.id,
+            name: group.name,
+            minPace: minPaceDisplay,
+            maxPace: maxPaceDisplay,
+            description: group.description || '',
+            requiredPacers: 1,
+            shadowSlots: 1
+          };
+        }));
         
         toast.success(`Added ${suggestedGroups.length} suggested pace groups`);
       } else {
@@ -202,6 +226,8 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
     } catch (error) {
       console.error('Failed to suggest pace groups:', error);
       toast.error('Failed to suggest pace groups');
+    } finally {
+      setLoadingPaceGroups(false);
     }
   };
 
@@ -509,11 +535,20 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
           <button 
             type="button"
             onClick={suggestPaceGroups}
-            disabled={!sessionData.paceMin || !sessionData.paceMax}
+            disabled={!sessionData.paceMin || !sessionData.paceMax || loadingPaceGroups}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
           >
-            <SafeIcon icon={FiTarget} className="w-4 h-4" />
-            <span>Suggest Pace Groups</span>
+            {loadingPaceGroups ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Suggesting...</span>
+              </>
+            ) : (
+              <>
+                <SafeIcon icon={FiTarget} className="w-4 h-4" />
+                <span>Suggest Pace Groups</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -657,6 +692,7 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-gray-900">{group.name}</h4>
                   <button
+                    type="button"
                     onClick={() => handleRemovePaceGroup(index)}
                     className="p-1 text-red-500 hover:bg-red-50 rounded-full"
                   >
@@ -720,6 +756,7 @@ function SessionForm({ initialData, onSubmit, isEdit = false }) {
               <span key={index} className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
                 <span>{item}</span>
                 <button
+                  type="button"
                   onClick={() => handleRemoveGear(index)}
                   className="w-4 h-4 flex items-center justify-center text-blue-700 hover:text-blue-900"
                 >
