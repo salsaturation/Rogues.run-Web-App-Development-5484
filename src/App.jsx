@@ -12,6 +12,7 @@ import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Goals from './pages/Goals';
 import AdminPanel from './pages/AdminPanel';
+import PacerSettings from './pages/PacerSettings';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -73,6 +74,7 @@ function App() {
               <Route path="goals" element={<Goals />} />
               <Route path="profile" element={<Profile />} />
               <Route path="admin" element={<AdminPanel />} />
+              <Route path="pacer-settings" element={<PacerSettings />} />
             </Route>
           </Routes>
         </div>
