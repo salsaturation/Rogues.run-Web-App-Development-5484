@@ -11,7 +11,7 @@ const { FiActivity, FiPhone, FiCheck, FiMail } = FiIcons;
 function Login() {
   const { loginWithFacebook, loginWithPhone, loginWithEmail } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('admin@rogues.run');
   const [verificationCode, setVerificationCode] = useState('');
   const [step, setStep] = useState('login'); // 'login', 'verify'
   const [loading, setLoading] = useState(false);
@@ -86,6 +86,11 @@ function Login() {
     }
   };
 
+  const quickLogin = (demoEmail) => {
+    setEmail(demoEmail);
+    setLoginType('email');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <motion.div
@@ -108,13 +113,17 @@ function Login() {
             <div className="space-y-6">
               {/* Demo Users Info */}
               <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                <h3 className="font-medium text-blue-900 mb-2">Demo Users:</h3>
-                <div className="space-y-1 text-sm text-blue-700">
+                <h3 className="font-medium text-blue-900 mb-3">Quick Login:</h3>
+                <div className="space-y-2">
                   {demoUsers.map((user, index) => (
-                    <div key={index} className="flex justify-between">
-                      <span>{user.email}</span>
-                      <span className="font-medium">({user.role})</span>
-                    </div>
+                    <button
+                      key={index}
+                      onClick={() => quickLogin(user.email)}
+                      className="w-full flex justify-between items-center p-2 text-sm bg-white rounded hover:bg-blue-100 transition-colors"
+                    >
+                      <span className="text-blue-700">{user.email}</span>
+                      <span className="font-medium text-blue-800">({user.role})</span>
+                    </button>
                   ))}
                 </div>
               </div>

@@ -1,101 +1,107 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { sessionService } from '../services/sessionService';
+import { memberService } from '../services/memberService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { 
+const {
   FiActivity, FiUsers, FiCalendar, FiTrendingUp, FiClock, FiMapPin,
   FiPlay, FiTarget, FiAward
 } = FiIcons;
 
 function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState({
+    totalSessions: 0,
+    activeMembers: 0,
+    thisMonth: 0,
+    avgAttendance: 0
+  });
+  const [upcomingSessions, setUpcomingSessions] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
-    {
-      title: 'Total Sessions',
-      value: '47',
-      change: '+12%',
-      icon: FiActivity,
-      color: 'blue'
-    },
-    {
-      title: 'Active Members',
-      value: '28',
-      change: '+3',
-      icon: FiUsers,
-      color: 'green'
-    },
-    {
-      title: 'This Month',
-      value: '8',
-      change: '+2',
-      icon: FiCalendar,
-      color: 'purple'
-    },
-    {
-      title: 'Avg. Attendance',
-      value: '15',
-      change: '+5%',
-      icon: FiTrendingUp,
-      color: 'orange'
-    }
-  ];
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
-  const upcomingSessions = [
-    {
-      id: 1,
-      title: 'Morning Run',
-      date: '2024-01-20',
-      time: '07:00 AM',
-      location: 'Central Park',
-      attendees: 12,
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      title: 'Evening Track Session',
-      date: '2024-01-22',
-      time: '06:30 PM',
-      location: 'Track & Field',
-      attendees: 8,
-      status: 'confirmed'
-    },
-    {
-      id: 3,
-      title: 'Weekend Long Run',
-      date: '2024-01-25',
-      time: '08:00 AM',
-      location: 'Riverside Trail',
-      attendees: 15,
-      status: 'pending'
-    }
-  ];
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load sessions
+      const sessions = await sessionService.getSessions();
+      const members = await memberService.getMembers();
+      
+      // Calculate stats
+      const now = new Date();
+      const thisMonth = now.getMonth();
+      const thisYear = now.getFullYear();
+      
+      const sessionsThisMonth = sessions.filter(session => {
+        const sessionDate = new Date(session.date);
+        return sessionDate.getMonth() === thisMonth && sessionDate.getFullYear() === thisYear;
+      });
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: 'session',
-      message: 'New session "Hill Training" created',
-      time: '2 hours ago',
-      icon: FiPlay
-    },
-    {
-      id: 2,
-      type: 'member',
-      message: 'Sarah Johnson joined the group',
-      time: '5 hours ago',
-      icon: FiUsers
-    },
-    {
-      id: 3,
-      type: 'achievement',
-      message: 'Group completed 100 sessions milestone!',
-      time: '1 day ago',
-      icon: FiAward
+      const totalAttendees = sessions.reduce((sum, session) => sum + session.attendeeCount, 0);
+      const avgAttendance = sessions.length > 0 ? Math.round(totalAttendees / sessions.length) : 0;
+
+      setStats({
+        totalSessions: sessions.length,
+        activeMembers: members.filter(m => m.isApproved).length,
+        thisMonth: sessionsThisMonth.length,
+        avgAttendance: avgAttendance
+      });
+
+      // Get upcoming sessions (next 3)
+      const upcoming = sessions
+        .filter(session => new Date(session.date) >= now)
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .slice(0, 3);
+      
+      setUpcomingSessions(upcoming);
+
+      // Mock recent activity
+      setRecentActivity([
+        {
+          id: 1,
+          type: 'session',
+          message: `New session "${sessions[0]?.title || 'Morning Run'}" created`,
+          time: '2 hours ago',
+          icon: FiPlay
+        },
+        {
+          id: 2,
+          type: 'member',
+          message: 'New member joined the group',
+          time: '5 hours ago',
+          icon: FiUsers
+        },
+        {
+          id: 3,
+          type: 'achievement',
+          message: 'Group completed milestone!',
+          time: '1 day ago',
+          icon: FiAward
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -124,7 +130,12 @@ function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {[
+          { title: 'Total Sessions', value: stats.totalSessions, change: '+12%', icon: FiActivity, color: 'blue' },
+          { title: 'Active Members', value: stats.activeMembers, change: '+3', icon: FiUsers, color: 'green' },
+          { title: 'This Month', value: stats.thisMonth, change: '+2', icon: FiCalendar, color: 'purple' },
+          { title: 'Avg. Attendance', value: stats.avgAttendance, change: '+5%', icon: FiTrendingUp, color: 'orange' }
+        ].map((stat, index) => (
           <motion.div
             key={stat.title}
             initial={{ opacity: 0, y: 20 }}
@@ -162,12 +173,10 @@ function Dashboard() {
             <SafeIcon icon={FiCalendar} className="w-5 h-5 text-gray-400" />
           </div>
           <div className="space-y-4">
-            {upcomingSessions.map((session) => (
+            {upcomingSessions.length > 0 ? upcomingSessions.map((session) => (
               <div key={session.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <div className={`w-3 h-3 rounded-full ${
-                    session.status === 'confirmed' ? 'bg-green-500' : 'bg-yellow-500'
-                  }`} />
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
                   <div>
                     <p className="font-medium text-gray-900">{session.title}</p>
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -183,11 +192,16 @@ function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{session.attendees} attending</p>
-                  <p className="text-xs text-gray-500">{session.date}</p>
+                  <p className="text-sm font-medium text-gray-900">{session.attendeeCount} attending</p>
+                  <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString()}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-8">
+                <SafeIcon icon={FiCalendar} className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">No upcoming sessions</p>
+              </div>
+            )}
           </div>
         </motion.div>
 

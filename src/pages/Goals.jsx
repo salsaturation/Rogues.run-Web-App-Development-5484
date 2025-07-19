@@ -7,8 +7,8 @@ import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const {
-  FiTarget, FiPlus, FiEdit, FiTrash2, FiCalendar, FiTrendingUp,
-  FiUsers, FiActivity, FiAward, FiCheckCircle
+  FiTarget, FiPlus, FiEdit, FiTrash2, FiCalendar, FiTrendingUp, FiUsers,
+  FiActivity, FiAward, FiCheckCircle
 } = FiIcons;
 
 function Goals() {
@@ -46,13 +46,15 @@ function Goals() {
 
   const handleCreateGoal = async (e) => {
     e.preventDefault();
+    
     if (!user?.isAdmin) {
       toast.error('Only admins can create goals');
       return;
     }
 
     try {
-      await goalService.createGoal(newGoal, user.id);
+      await goalService.createGoal(newGoal, user?.id || user?.email);
+      
       setNewGoal({
         title: '',
         description: '',
@@ -61,6 +63,7 @@ function Goals() {
         goalType: 'sessions',
         targetDate: ''
       });
+      
       setShowCreateModal(false);
       loadGoals();
     } catch (error) {
@@ -165,15 +168,21 @@ function Goals() {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className={`w-12 h-12 rounded-lg flex items-center justify-center bg-${getGoalTypeColor(goal.goalType)}-100`}>
-                  <SafeIcon icon={getGoalTypeIcon(goal.goalType)} className={`w-6 h-6 text-${getGoalTypeColor(goal.goalType)}-600`} />
+                  <SafeIcon 
+                    icon={getGoalTypeIcon(goal.goalType)} 
+                    className={`w-6 h-6 text-${getGoalTypeColor(goal.goalType)}-600`} 
+                  />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">{goal.title}</h3>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
-                    goal.goalType === 'members' ? 'bg-blue-100 text-blue-800' :
-                    goal.goalType === 'sessions' ? 'bg-green-100 text-green-800' :
-                    goal.goalType === 'distance' ? 'bg-purple-100 text-purple-800' :
-                    'bg-gray-100 text-gray-800'
+                    goal.goalType === 'members' 
+                      ? 'bg-blue-100 text-blue-800' 
+                      : goal.goalType === 'sessions' 
+                      ? 'bg-green-100 text-green-800' 
+                      : goal.goalType === 'distance' 
+                      ? 'bg-purple-100 text-purple-800' 
+                      : 'bg-gray-100 text-gray-800'
                   }`}>
                     {goal.goalType}
                   </span>
@@ -209,9 +218,7 @@ function Goals() {
                   {goal.progress}% Complete
                 </span>
                 {goal.targetDate && (
-                  <span className={`text-xs ${
-                    isGoalOverdue(goal) ? 'text-red-600' : 'text-gray-500'
-                  }`}>
+                  <span className={`text-xs ${isGoalOverdue(goal) ? 'text-red-600' : 'text-gray-500'}`}>
                     Due {new Date(goal.targetDate).toLocaleDateString()}
                   </span>
                 )}
@@ -309,7 +316,7 @@ function Goals() {
                 <input
                   type="text"
                   value={newGoal.title}
-                  onChange={(e) => setNewGoal({...newGoal, title: e.target.value})}
+                  onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -318,7 +325,7 @@ function Goals() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   value={newGoal.description}
-                  onChange={(e) => setNewGoal({...newGoal, description: e.target.value})}
+                  onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows="3"
                 />
@@ -328,7 +335,7 @@ function Goals() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Goal Type</label>
                   <select
                     value={newGoal.goalType}
-                    onChange={(e) => setNewGoal({...newGoal, goalType: e.target.value})}
+                    onChange={(e) => setNewGoal({ ...newGoal, goalType: e.target.value })}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="sessions">Sessions</option>
@@ -342,7 +349,7 @@ function Goals() {
                   <input
                     type="number"
                     value={newGoal.targetValue}
-                    onChange={(e) => setNewGoal({...newGoal, targetValue: parseInt(e.target.value)})}
+                    onChange={(e) => setNewGoal({ ...newGoal, targetValue: parseInt(e.target.value) })}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="1"
                     required
@@ -355,7 +362,7 @@ function Goals() {
                   <input
                     type="number"
                     value={newGoal.currentValue}
-                    onChange={(e) => setNewGoal({...newGoal, currentValue: parseInt(e.target.value)})}
+                    onChange={(e) => setNewGoal({ ...newGoal, currentValue: parseInt(e.target.value) })}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="0"
                   />
@@ -365,7 +372,7 @@ function Goals() {
                   <input
                     type="date"
                     value={newGoal.targetDate}
-                    onChange={(e) => setNewGoal({...newGoal, targetDate: e.target.value})}
+                    onChange={(e) => setNewGoal({ ...newGoal, targetDate: e.target.value })}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>

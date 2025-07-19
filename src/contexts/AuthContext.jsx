@@ -73,6 +73,17 @@ export function AuthProvider({ children }) {
 
   const registerUser = async (userData) => {
     try {
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users_rogues_7a9k2m')
+        .select('id')
+        .eq('email', userData.email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('User already exists');
+      }
+
       const { data, error } = await supabase
         .from('users_rogues_7a9k2m')
         .insert([{
@@ -82,7 +93,8 @@ export function AuthProvider({ children }) {
           provider: userData.provider || 'email',
           location: userData.location || 'New York, NY',
           bio: userData.bio || 'New running community member',
-          is_approved: userData.provider === 'facebook' // Auto-approve Facebook users
+          is_approved: userData.provider === 'facebook', // Auto-approve Facebook users
+          picture: userData.picture
         }])
         .select()
         .single();
@@ -101,7 +113,8 @@ export function AuthProvider({ children }) {
         location: data.location,
         bio: data.bio,
         joinDate: data.join_date,
-        sessionsAttended: 0
+        sessionsAttended: 0,
+        picture: data.picture
       };
 
       if (data.is_approved) {
@@ -122,14 +135,39 @@ export function AuthProvider({ children }) {
   const loginWithFacebook = async (response) => {
     try {
       // Check if user exists
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error } = await supabase
         .from('users_rogues_7a9k2m')
         .select('*')
         .eq('email', response.email)
         .single();
 
-      if (existingUser) {
-        return loginWithEmail(response.email);
+      if (existingUser && !error) {
+        // User exists, log them in
+        const userProfile = {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phone: existingUser.phone,
+          picture: existingUser.picture,
+          provider: existingUser.provider,
+          isAdmin: existingUser.is_admin,
+          canPublish: existingUser.can_publish,
+          isApproved: existingUser.is_approved,
+          location: existingUser.location,
+          bio: existingUser.bio,
+          joinDate: existingUser.join_date,
+          sessionsAttended: existingUser.sessions_attended
+        };
+
+        if (!existingUser.is_approved) {
+          toast.error('Your account is pending admin approval');
+          return null;
+        }
+
+        setUser(userProfile);
+        localStorage.setItem('rogues-user', JSON.stringify(userProfile));
+        toast.success('Welcome back!');
+        return userProfile;
       } else {
         // Register new Facebook user
         return registerUser({
@@ -148,13 +186,13 @@ export function AuthProvider({ children }) {
   const loginWithPhone = async (phoneNumber) => {
     try {
       // Check if user exists
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error } = await supabase
         .from('users_rogues_7a9k2m')
         .select('*')
         .eq('phone', phoneNumber)
         .single();
 
-      if (existingUser) {
+      if (existingUser && !error) {
         if (!existingUser.is_approved) {
           toast.error('Your account is pending admin approval');
           return null;
@@ -180,7 +218,7 @@ export function AuthProvider({ children }) {
       } else {
         // Register new phone user
         return registerUser({
-          email: `${phoneNumber}@phone.user`,
+          email: `${phoneNumber.replace(/\+/g, '')}@phone.user`,
           name: 'Phone User',
           phone: phoneNumber,
           provider: 'phone'

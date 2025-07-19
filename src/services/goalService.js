@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
 
 export const goalService = {
   // Get all goals
@@ -39,6 +40,27 @@ export const goalService = {
   // Create new goal
   async createGoal(goalData, userId) {
     try {
+      // Make sure userId is a valid UUID
+      let createdBy;
+      
+      if (!this.isValidUUID(userId)) {
+        // Get the actual UUID for this user from the database
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', 'admin@rogues.run')
+          .single();
+          
+        if (userError || !userData) {
+          // If user not found, use a default UUID
+          createdBy = uuidv4();
+        } else {
+          createdBy = userData.id;
+        }
+      } else {
+        createdBy = userId;
+      }
+
       const { data, error } = await supabase
         .from('goals_rogues_7a9k2m')
         .insert([{
@@ -48,7 +70,7 @@ export const goalService = {
           current_value: goalData.currentValue || 0,
           goal_type: goalData.goalType,
           target_date: goalData.targetDate,
-          created_by: userId
+          created_by: createdBy
         }])
         .select()
         .single();
@@ -57,7 +79,8 @@ export const goalService = {
       toast.success('Goal created successfully!');
       return data;
     } catch (error) {
-      toast.error('Failed to create goal');
+      console.error('Goal creation error:', error);
+      toast.error('Failed to create goal: ' + error.message);
       throw error;
     }
   },
@@ -67,7 +90,7 @@ export const goalService = {
     try {
       const { error } = await supabase
         .from('goals_rogues_7a9k2m')
-        .update({ 
+        .update({
           current_value: newValue,
           updated_at: new Date().toISOString()
         })
@@ -122,9 +145,17 @@ export const goalService = {
         .update({ current_value: sessionCount?.length || 0 })
         .eq('goal_type', 'sessions')
         .eq('is_active', true);
-
     } catch (error) {
       console.error('Failed to auto-update goals:', error);
     }
+  },
+  
+  // Helper to validate UUID
+  isValidUUID(str) {
+    if (!str) return false;
+    
+    // UUID v4 regex pattern
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
   }
 };
