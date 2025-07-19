@@ -25,7 +25,6 @@ export const paceGroupService = {
       return data.map(group => {
         // Filter pacers by role
         const allPacers = group.pacers || [];
-        
         return {
           id: group.id,
           sessionId: group.session_id,
@@ -36,8 +35,7 @@ export const paceGroupService = {
           requiredPacers: group.required_pacers,
           shadowSlots: group.shadow_slots,
           createdAt: group.created_at,
-          
-          // Primary pacers (role = 'primary')
+          // Primary pacers (role='primary')
           pacers: allPacers
             .filter(p => p.role === 'primary')
             .map(p => ({
@@ -46,8 +44,7 @@ export const paceGroupService = {
               userPicture: p.user?.picture,
               status: p.status
             })),
-            
-          // Shadow pacers (role = 'shadow')
+          // Shadow pacers (role='shadow')
           shadowPacers: allPacers
             .filter(p => p.role === 'shadow')
             .map(p => ({
@@ -56,7 +53,6 @@ export const paceGroupService = {
               userPicture: p.user?.picture,
               status: p.status
             })),
-            
           // Pending volunteer requests
           pendingVolunteers: allPacers
             .filter(p => p.status === 'pending')
@@ -72,6 +68,177 @@ export const paceGroupService = {
       console.error('Failed to fetch pace groups:', error);
       toast.error('Failed to fetch pace groups');
       throw error;
+    }
+  },
+
+  // Get standard pace groups (for admin management)
+  async getStandardPaceGroups() {
+    try {
+      const { data, error } = await supabase
+        .from('standard_pace_groups_rogues_7a9k2m')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+
+      return data.map(group => ({
+        id: group.id,
+        name: group.name,
+        minPace: group.min_pace,
+        maxPace: group.max_pace,
+        description: group.description,
+        color: group.color,
+        icon: group.icon,
+        displayOrder: group.display_order,
+        isActive: group.is_active,
+        createdBy: group.created_by,
+        createdAt: group.created_at,
+        updatedAt: group.updated_at
+      }));
+    } catch (error) {
+      console.error('Failed to fetch standard pace groups:', error);
+      toast.error('Failed to fetch standard pace groups');
+      throw error;
+    }
+  },
+
+  // Create a standard pace group
+  async createStandardPaceGroup(groupData, userId) {
+    try {
+      // Ensure userId is valid
+      let createdBy;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        createdBy = userData.id;
+      } else {
+        createdBy = userId;
+      }
+
+      const { data, error } = await supabase
+        .from('standard_pace_groups_rogues_7a9k2m')
+        .insert([{
+          name: groupData.name,
+          min_pace: groupData.minPace,
+          max_pace: groupData.maxPace,
+          description: groupData.description,
+          color: groupData.color,
+          icon: groupData.icon,
+          display_order: groupData.displayOrder,
+          is_active: groupData.isActive !== false,
+          created_by: createdBy
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Standard pace group created successfully');
+      return data;
+    } catch (error) {
+      console.error('Failed to create standard pace group:', error);
+      toast.error('Failed to create standard pace group');
+      throw error;
+    }
+  },
+
+  // Update a standard pace group
+  async updateStandardPaceGroup(groupId, groupData) {
+    try {
+      const { error } = await supabase
+        .from('standard_pace_groups_rogues_7a9k2m')
+        .update({
+          name: groupData.name,
+          min_pace: groupData.minPace,
+          max_pace: groupData.maxPace,
+          description: groupData.description,
+          color: groupData.color,
+          icon: groupData.icon,
+          display_order: groupData.displayOrder,
+          is_active: groupData.isActive,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', groupId);
+
+      if (error) throw error;
+
+      toast.success('Standard pace group updated successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to update standard pace group:', error);
+      toast.error('Failed to update standard pace group');
+      throw error;
+    }
+  },
+
+  // Delete a standard pace group
+  async deleteStandardPaceGroup(groupId) {
+    try {
+      const { error } = await supabase
+        .from('standard_pace_groups_rogues_7a9k2m')
+        .delete()
+        .eq('id', groupId);
+
+      if (error) throw error;
+
+      toast.success('Standard pace group deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to delete standard pace group:', error);
+      toast.error('Failed to delete standard pace group');
+      throw error;
+    }
+  },
+
+  // Get suggested pace groups for a session
+  async getSuggestedPaceGroups(minPace, maxPace) {
+    try {
+      const { data, error } = await supabase
+        .rpc('suggest_pace_groups_for_session', {
+          session_min_pace: minPace,
+          session_max_pace: maxPace
+        });
+
+      if (error) throw error;
+
+      return data.map(group => ({
+        id: group.id,
+        name: group.name,
+        minPace: group.min_pace,
+        maxPace: group.max_pace,
+        description: group.description,
+        color: group.color,
+        icon: group.icon,
+        requiredPacers: 1, // Default values for session pace groups
+        shadowSlots: 1
+      }));
+    } catch (error) {
+      console.error('Failed to get suggested pace groups:', error);
+      return [];
+    }
+  },
+
+  // Match user to pace groups
+  async matchUserToPaceGroups(userId) {
+    try {
+      const { data, error } = await supabase
+        .rpc('match_user_to_pace_groups', {
+          user_uuid: userId
+        });
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      console.error('Failed to match user to pace groups:', error);
+      return [];
     }
   },
 
@@ -93,6 +260,7 @@ export const paceGroupService = {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error('Failed to create pace group:', error);
@@ -118,6 +286,7 @@ export const paceGroupService = {
         .eq('id', groupId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to update pace group:', error);
@@ -135,6 +304,7 @@ export const paceGroupService = {
         .eq('id', groupId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to delete pace group:', error);
@@ -150,16 +320,16 @@ export const paceGroupService = {
       if (!['primary', 'shadow'].includes(role)) {
         role = 'primary';
       }
-      
+
       // Check if already volunteered for this group
       const { data: existingRequest, error: checkError } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
         .select('id')
         .eq('pace_group_id', groupId)
         .eq('user_id', userId);
-        
+
       if (checkError) throw checkError;
-      
+
       if (existingRequest && existingRequest.length > 0) {
         throw new Error('You have already volunteered for this pace group');
       }
@@ -170,11 +340,11 @@ export const paceGroupService = {
         .select('require_pacer_approval')
         .eq('id', sessionId)
         .single();
-        
+
       if (sessionError) throw sessionError;
-      
+
       const requireApproval = sessionData?.require_pacer_approval !== false;
-      
+
       // Insert the volunteer request
       const { error } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
@@ -187,6 +357,7 @@ export const paceGroupService = {
         }]);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to volunteer as pacer:', error);
@@ -205,6 +376,7 @@ export const paceGroupService = {
         .eq('user_id', userId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to cancel volunteer request:', error);
@@ -227,6 +399,7 @@ export const paceGroupService = {
         .eq('user_id', userId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to approve volunteer:', error);
@@ -245,6 +418,7 @@ export const paceGroupService = {
         .eq('user_id', userId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to reject volunteer:', error);
@@ -271,11 +445,11 @@ export const paceGroupService = {
             auto_assign_pacers: true,
             require_approval: true
           };
-          
+
           await supabase
             .from('pacer_settings_rogues_7a9k2m')
             .insert([defaultSettings]);
-            
+
           return {
             pacerRoleTitle: defaultSettings.pacer_role_title,
             shadowRoleTitle: defaultSettings.shadow_role_title,
@@ -323,6 +497,7 @@ export const paceGroupService = {
         }]);
 
       if (error) throw error;
+
       toast.success('Pacer settings updated');
       return true;
     } catch (error) {
@@ -338,11 +513,10 @@ export const paceGroupService = {
       if (!groupIds || groupIds.length === 0) {
         throw new Error('No pace groups selected');
       }
-      
       if (!preferredRoles || preferredRoles.length === 0) {
         throw new Error('No roles selected');
       }
-      
+
       // Create a multi-group volunteer request
       const { data: requestData, error: requestError } = await supabase
         .from('pacer_volunteer_requests_rogues_7a9k2m')
@@ -357,18 +531,18 @@ export const paceGroupService = {
         }])
         .select()
         .single();
-        
+
       if (requestError) throw requestError;
-      
+
       // If auto-assign is enabled, create tentative assignments
       const { data: settingsData } = await supabase
         .from('pacer_settings_rogues_7a9k2m')
         .select('auto_assign_pacers, require_approval')
         .single();
-        
+
       const autoAssign = settingsData?.auto_assign_pacers !== false;
       const requireApproval = settingsData?.require_approval !== false;
-      
+
       if (autoAssign) {
         // Create tentative assignments for each group
         const pacerAssignments = groupIds.map(groupId => ({
@@ -379,14 +553,14 @@ export const paceGroupService = {
           volunteer_request_id: requestData.id,
           created_at: new Date().toISOString()
         }));
-        
+
         const { error: assignError } = await supabase
           .from('pace_group_pacers_rogues_7a9k2m')
           .insert(pacerAssignments);
-          
+
         if (assignError) throw assignError;
       }
-      
+
       return true;
     } catch (error) {
       console.error('Failed to submit volunteer request:', error);
@@ -407,9 +581,9 @@ export const paceGroupService = {
         `)
         .eq('user_id', userId)
         .filter('pace_group.session_id', 'eq', sessionId);
-        
+
       if (assignmentsError) throw assignmentsError;
-      
+
       // Check for volunteer requests
       const { data: requestsData, error: requestsError } = await supabase
         .from('pacer_volunteer_requests_rogues_7a9k2m')
@@ -418,23 +592,22 @@ export const paceGroupService = {
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false })
         .limit(1);
-        
+
       if (requestsError) throw requestsError;
-      
+
       // Determine overall status
       let isVolunteering = false;
       let preferredGroups = [];
       let preferredRoles = [];
       let status = 'none';
-      
+
       if (assignmentsData && assignmentsData.length > 0) {
         isVolunteering = true;
-        
         // Get confirmed or tentative assignments
         const confirmedAssignments = assignmentsData.filter(a => 
           a.status === 'confirmed' || a.status === 'tentative'
         );
-        
+
         if (confirmedAssignments.length > 0) {
           status = confirmedAssignments[0].status;
           preferredGroups = confirmedAssignments.map(a => a.pace_group.id);
@@ -452,7 +625,7 @@ export const paceGroupService = {
         preferredGroups = requestsData[0].pace_group_ids || [];
         preferredRoles = requestsData[0].preferred_roles || [];
       }
-      
+
       return {
         isVolunteering,
         preferredGroups,
@@ -468,5 +641,13 @@ export const paceGroupService = {
         status: 'none'
       };
     }
+  },
+  
+  // Helper to validate UUID
+  isValidUUID(str) {
+    if (!str) return false;
+    // UUID v4 regex pattern
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
   }
 };

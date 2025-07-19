@@ -23,7 +23,7 @@ const {
   FiMapPin, FiClock, FiCalendar, FiUsers, FiCheckCircle, 
   FiAlertCircle, FiThermometer, FiActivity, FiArrowUp, 
   FiArrowDown, FiShield, FiList, FiInfo, FiSave, FiTemplate,
-  FiCopy, FiPlus, FiTrash2
+  FiCopy, FiPlus, FiTrash2, FiRefreshCw
 } = FiIcons;
 
 function LocationPicker({ onLocationSelect, initialLocation }) {
@@ -105,6 +105,8 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
     requiredPacers: 1,
     shadowSlots: 1
   });
+  const [standardPaceGroups, setStandardPaceGroups] = useState([]);
+  const [loadingStandardGroups, setLoadingStandardGroups] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -118,6 +120,9 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
         loadPaceGroups(initialData.id);
       }
     }
+    
+    // Load standard pace groups
+    loadStandardPaceGroups();
   }, [initialData]);
 
   const loadPaceGroups = async (sessionId) => {
@@ -126,6 +131,18 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
       setPaceGroups(groups);
     } catch (error) {
       console.error('Failed to load pace groups:', error);
+    }
+  };
+
+  const loadStandardPaceGroups = async () => {
+    try {
+      setLoadingStandardGroups(true);
+      const groups = await paceGroupService.getStandardPaceGroups();
+      setStandardPaceGroups(groups.filter(g => g.isActive));
+    } catch (error) {
+      console.error('Failed to load standard pace groups:', error);
+    } finally {
+      setLoadingStandardGroups(false);
     }
   };
 
@@ -224,8 +241,10 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
         templateInfo.tags
       );
       setShowTemplateModal(false);
+      toast.success('Session saved as template successfully');
     } catch (error) {
       console.error('Failed to save template:', error);
+      toast.error('Failed to save template');
     }
   };
 
@@ -269,6 +288,43 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
   const handleDeletePaceGroup = (index) => {
     const updatedGroups = paceGroups.filter((_, i) => i !== index);
     setPaceGroups(updatedGroups);
+  };
+
+  const handleLoadStandardPaceGroups = async () => {
+    try {
+      if (sessionData.paceMin && sessionData.paceMax) {
+        const suggestedGroups = await paceGroupService.getSuggestedPaceGroups(
+          sessionData.paceMin, 
+          sessionData.paceMax
+        );
+        
+        if (suggestedGroups.length > 0) {
+          // Add IDs to the groups
+          const groupsWithIds = suggestedGroups.map(group => ({
+            ...group,
+            id: Date.now() + Math.random() * 1000
+          }));
+          
+          // Confirm before replacing
+          if (paceGroups.length > 0) {
+            if (window.confirm('This will replace your existing pace groups. Continue?')) {
+              setPaceGroups(groupsWithIds);
+            }
+          } else {
+            setPaceGroups(groupsWithIds);
+          }
+          
+          toast.success(`Added ${suggestedGroups.length} standard pace groups`);
+        } else {
+          toast.error('No matching standard pace groups found for this pace range');
+        }
+      } else {
+        toast.error('Please set min and max pace values first');
+      }
+    } catch (error) {
+      console.error('Failed to load standard pace groups:', error);
+      toast.error('Failed to load standard pace groups');
+    }
   };
 
   const formatPace = (pace) => {
@@ -680,25 +736,49 @@ function SessionForm({ initialData, onSubmit, isEdit }) {
                 <h3 className="text-lg font-medium text-gray-900">Pace Groups</h3>
                 <p className="text-sm text-gray-600">Organize participants by running pace</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingPaceGroup(null);
-                  setPaceGroupForm({
-                    name: '',
-                    minPace: 6.0,
-                    maxPace: 6.5,
-                    description: '',
-                    requiredPacers: 1,
-                    shadowSlots: 1
-                  });
-                  setShowPaceGroupForm(true);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-              >
-                <SafeIcon icon={FiPlus} className="w-4 h-4" />
-                <span>Add Pace Group</span>
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={handleLoadStandardPaceGroups}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  disabled={loadingStandardGroups}
+                >
+                  <SafeIcon icon={loadingStandardGroups ? FiRefreshCw : FiActivity} 
+                    className={`w-4 h-4 ${loadingStandardGroups ? 'animate-spin' : ''}`} />
+                  <span>Use Standard Groups</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPaceGroup(null);
+                    setPaceGroupForm({
+                      name: '',
+                      minPace: 6.0,
+                      maxPace: 6.5,
+                      description: '',
+                      requiredPacers: 1,
+                      shadowSlots: 1
+                    });
+                    setShowPaceGroupForm(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <SafeIcon icon={FiPlus} className="w-4 h-4" />
+                  <span>Add Pace Group</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Standard Pace Groups Info */}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Standard Pace Groups</h4>
+              <p className="text-blue-700 text-sm mb-2">
+                The "Use Standard Groups" button will automatically create pace groups based on your session's pace range.
+                These groups are defined by administrators and ensure consistency across all sessions.
+              </p>
+              <p className="text-blue-700 text-sm">
+                You can modify these groups after adding them, or create custom groups using the "Add Pace Group" button.
+              </p>
             </div>
 
             {/* Existing Pace Groups */}
