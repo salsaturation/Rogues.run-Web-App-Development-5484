@@ -5,11 +5,9 @@ import { sessionService } from '../services/sessionService';
 import { memberService } from '../services/memberService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import RecommendedSessions from '../components/RecommendedSessions';
 
-const {
-  FiActivity, FiUsers, FiCalendar, FiTrendingUp, FiClock, FiMapPin,
-  FiPlay, FiTarget, FiAward
-} = FiIcons;
+const { FiActivity, FiUsers, FiCalendar, FiTrendingUp, FiClock, FiMapPin, FiPlay, FiTarget, FiAward } = FiIcons;
 
 function Dashboard() {
   const { user } = useAuth();
@@ -30,16 +28,14 @@ function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
       // Load sessions
       const sessions = await sessionService.getSessions();
       const members = await memberService.getMembers();
-      
+
       // Calculate stats
       const now = new Date();
       const thisMonth = now.getMonth();
       const thisYear = now.getFullYear();
-      
       const sessionsThisMonth = sessions.filter(session => {
         const sessionDate = new Date(session.date);
         return sessionDate.getMonth() === thisMonth && sessionDate.getFullYear() === thisYear;
@@ -60,34 +56,15 @@ function Dashboard() {
         .filter(session => new Date(session.date) >= now)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .slice(0, 3);
-      
+
       setUpcomingSessions(upcoming);
 
       // Mock recent activity
       setRecentActivity([
-        {
-          id: 1,
-          type: 'session',
-          message: `New session "${sessions[0]?.title || 'Morning Run'}" created`,
-          time: '2 hours ago',
-          icon: FiPlay
-        },
-        {
-          id: 2,
-          type: 'member',
-          message: 'New member joined the group',
-          time: '5 hours ago',
-          icon: FiUsers
-        },
-        {
-          id: 3,
-          type: 'achievement',
-          message: 'Group completed milestone!',
-          time: '1 day ago',
-          icon: FiAward
-        }
+        { id: 1, type: 'session', message: `New session "${sessions[0]?.title || 'Morning Run'}" created`, time: '2 hours ago', icon: FiPlay },
+        { id: 2, type: 'member', message: 'New member joined the group', time: '5 hours ago', icon: FiUsers },
+        { id: 3, type: 'achievement', message: 'Group completed milestone!', time: '1 day ago', icon: FiAward }
       ]);
-
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -147,9 +124,7 @@ function Dashboard() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">{stat.title}</p>
                 <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className={`text-sm font-medium mt-1 ${
-                  stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <p className={`text-sm font-medium mt-1 ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
                   {stat.change}
                 </p>
               </div>
@@ -161,6 +136,11 @@ function Dashboard() {
         ))}
       </div>
 
+      {/* Recommended Sessions */}
+      {user && user.pacePreferences && (
+        <RecommendedSessions />
+      )}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upcoming Sessions */}
         <motion.div

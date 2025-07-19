@@ -58,7 +58,8 @@ export function AuthProvider({ children }) {
         location: userData.location,
         bio: userData.bio,
         joinDate: userData.join_date,
-        sessionsAttended: userData.sessions_attended
+        sessionsAttended: userData.sessions_attended,
+        pacePreferences: userData.pace_preferences || []
       };
 
       setUser(userProfile);
@@ -94,7 +95,8 @@ export function AuthProvider({ children }) {
           location: userData.location || 'New York, NY',
           bio: userData.bio || 'New running community member',
           is_approved: userData.provider === 'facebook', // Auto-approve Facebook users
-          picture: userData.picture
+          picture: userData.picture,
+          pace_preferences: []
         }])
         .select()
         .single();
@@ -114,7 +116,8 @@ export function AuthProvider({ children }) {
         bio: data.bio,
         joinDate: data.join_date,
         sessionsAttended: 0,
-        picture: data.picture
+        picture: data.picture,
+        pacePreferences: []
       };
 
       if (data.is_approved) {
@@ -156,7 +159,8 @@ export function AuthProvider({ children }) {
           location: existingUser.location,
           bio: existingUser.bio,
           joinDate: existingUser.join_date,
-          sessionsAttended: existingUser.sessions_attended
+          sessionsAttended: existingUser.sessions_attended,
+          pacePreferences: existingUser.pace_preferences || []
         };
 
         if (!existingUser.is_approved) {
@@ -208,7 +212,8 @@ export function AuthProvider({ children }) {
           isApproved: existingUser.is_approved,
           location: existingUser.location,
           joinDate: existingUser.join_date,
-          sessionsAttended: existingUser.sessions_attended
+          sessionsAttended: existingUser.sessions_attended,
+          pacePreferences: existingUser.pace_preferences || []
         };
 
         setUser(userProfile);
@@ -251,13 +256,18 @@ export function AuthProvider({ children }) {
           phone: updates.phone,
           location: updates.location,
           bio: updates.bio,
+          pace_preferences: updates.pacePreferences || [],
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      const updatedUser = { ...user, ...updates };
+      const updatedUser = {
+        ...user,
+        ...updates
+      };
+
       setUser(updatedUser);
       localStorage.setItem('rogues-user', JSON.stringify(updatedUser));
       toast.success('Profile updated successfully');

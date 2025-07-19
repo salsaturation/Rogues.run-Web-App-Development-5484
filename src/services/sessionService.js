@@ -10,14 +10,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email),
+          creator:users_rogues_7a9k2m!created_by(name,email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           )
         `)
         .order('session_date', { ascending: true });
@@ -70,14 +70,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email),
+          creator:users_rogues_7a9k2m!created_by(name,email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           )
         `)
         .eq('id', sessionId)
@@ -130,7 +130,6 @@ export const sessionService = {
     try {
       // Make sure userId is a valid UUID
       let createdBy;
-      
       if (!this.isValidUUID(userId)) {
         // Generate a UUID for non-UUID user IDs
         const { data: userData, error: userError } = await supabase
@@ -138,7 +137,7 @@ export const sessionService = {
           .select('id')
           .eq('email', sessionData.creatorEmail || 'admin@rogues.run')
           .maybeSingle();
-          
+
         if (userError || !userData) {
           // If user not found, use a default admin user
           const { data: adminUser } = await supabase
@@ -146,7 +145,7 @@ export const sessionService = {
             .select('id')
             .eq('is_admin', true)
             .maybeSingle();
-          
+
           createdBy = adminUser?.id || uuidv4();
         } else {
           createdBy = userData.id;
@@ -175,7 +174,6 @@ export const sessionService = {
         location: sessionData.location,
         max_attendees: sessionData.maxAttendees,
         created_by: createdBy,
-        
         // Enhanced fields
         start_location_name: sessionData.startLocationName,
         start_location_lat: sessionData.startLocationLat,
@@ -200,7 +198,6 @@ export const sessionService = {
         .single();
 
       if (error) throw error;
-
       toast.success('Session created successfully!');
       return data;
     } catch (error) {
@@ -215,7 +212,6 @@ export const sessionService = {
     try {
       // Make sure userId is a valid UUID
       let userUuid;
-      
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
         const { data: userData, error: userError } = await supabase
@@ -223,18 +219,17 @@ export const sessionService = {
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
           .maybeSingle();
-          
+
         if (userError || !userData) {
           // If user not found, create a temporary UUID
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
-      
+
       // Check if already joined
       const { data: existing, error: checkError } = await supabase
         .from('session_attendees_rogues_7a9k2m')
@@ -261,10 +256,7 @@ export const sessionService = {
         // Join session
         const { error } = await supabase
           .from('session_attendees_rogues_7a9k2m')
-          .insert([{
-            session_id: sessionId,
-            user_id: userUuid
-          }]);
+          .insert([{ session_id: sessionId, user_id: userUuid }]);
 
         if (error) throw error;
 
@@ -275,7 +267,7 @@ export const sessionService = {
           console.error('Failed to update session count:', rpcError);
           // Continue even if this fails
         }
-        
+
         toast.success('Joined session successfully');
         return true; // Joined
       }
@@ -291,7 +283,6 @@ export const sessionService = {
     try {
       // Make sure userId is a valid UUID
       let userUuid;
-      
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
         const { data: userData, error: userError } = await supabase
@@ -299,17 +290,16 @@ export const sessionService = {
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
           .maybeSingle();
-          
+
         if (userError || !userData) {
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
-      
+
       // Check if already interested
       const { data: existing, error: checkError } = await supabase
         .from('session_interested_users_rogues_7a9k2m')
@@ -336,13 +326,9 @@ export const sessionService = {
         // Add interest
         const { error } = await supabase
           .from('session_interested_users_rogues_7a9k2m')
-          .insert([{
-            session_id: sessionId,
-            user_id: userUuid
-          }]);
+          .insert([{ session_id: sessionId, user_id: userUuid }]);
 
         if (error) throw error;
-        
         toast.success('Added to interested list');
         return true; // Interested
       }
@@ -358,7 +344,6 @@ export const sessionService = {
     try {
       // Make sure userId is a valid UUID
       let userUuid;
-      
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
         const { data: userData, error: userError } = await supabase
@@ -366,13 +351,13 @@ export const sessionService = {
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
           .maybeSingle();
-          
+
         if (userError || !userData) return false;
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
-      
+
       const { data, error } = await supabase
         .from('session_interested_users_rogues_7a9k2m')
         .select('id')
@@ -415,7 +400,6 @@ export const sessionService = {
           location: updates.location,
           max_attendees: updates.maxAttendees,
           updated_at: new Date().toISOString(),
-          
           // Enhanced fields
           start_location_name: updates.startLocationName,
           start_location_lat: updates.startLocationLat,
@@ -486,7 +470,61 @@ export const sessionService = {
       throw error;
     }
   },
-  
+
+  // Find sessions matching user pace preferences
+  async findSessionsByPacePreferences(userId) {
+    try {
+      // First get user's pace preferences
+      const { data: userData, error: userError } = await supabase
+        .from('users_rogues_7a9k2m')
+        .select('pacePreferences')
+        .eq('id', userId)
+        .single();
+      
+      if (userError || !userData || !userData.pacePreferences) {
+        return [];
+      }
+      
+      const pacePreferences = userData.pacePreferences;
+      
+      // Find upcoming sessions that match user's pace preferences
+      const { data: sessions, error } = await supabase
+        .from('sessions_rogues_7a9k2m')
+        .select('*')
+        .gte('session_date', new Date().toISOString().split('T')[0])
+        .order('session_date', { ascending: true });
+        
+      if (error) throw error;
+      
+      // Filter sessions by matching pace preferences
+      const matchedSessions = sessions.filter(session => {
+        if (!session.pace_min || !session.pace_max) return false;
+        
+        return pacePreferences.some(pref => {
+          // Match by run type and pace range
+          return (
+            (!session.run_type || session.run_type === pref.runType) && 
+            pref.pace >= session.pace_min && 
+            pref.pace <= session.pace_max
+          );
+        });
+      });
+      
+      return matchedSessions.map(session => ({
+        id: session.id,
+        title: session.title,
+        date: session.session_date,
+        time: session.session_time,
+        runType: session.run_type,
+        paceMin: session.pace_min,
+        paceMax: session.pace_max
+      }));
+    } catch (error) {
+      console.error('Failed to match sessions by pace:', error);
+      return [];
+    }
+  },
+
   // Get session comments
   async getSessionComments(sessionId) {
     try {
@@ -494,7 +532,7 @@ export const sessionService = {
         .from('session_comments_rogues_7a9k2m')
         .select(`
           *,
-          user:users_rogues_7a9k2m!user_id(name, email, picture)
+          user:users_rogues_7a9k2m!user_id(name,email,picture)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
@@ -512,7 +550,6 @@ export const sessionService = {
     try {
       // Make sure userId is a valid UUID
       let userUuid;
-      
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
         const { data: userData, error: userError } = await supabase
@@ -520,12 +557,11 @@ export const sessionService = {
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
           .maybeSingle();
-          
+
         if (userError || !userData) {
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
@@ -548,11 +584,10 @@ export const sessionService = {
       return false;
     }
   },
-  
+
   // Helper to validate UUID
   isValidUUID(str) {
     if (!str) return false;
-    
     // UUID v4 regex pattern
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidRegex.test(str);
