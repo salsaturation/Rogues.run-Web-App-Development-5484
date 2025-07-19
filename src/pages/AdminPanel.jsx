@@ -1,18 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { paceGroupService } from '../services/paceGroupService';
 
-const { 
-  FiShield, FiUsers, FiSettings, FiActivity, FiBell, FiBarChart3,
-  FiCheck, FiX, FiEdit, FiTrash2, FiPlus, FiDownload, FiUpload
-} = FiIcons;
+const { FiShield, FiUsers, FiSettings, FiActivity, FiBell, FiBarChart3, FiCheck, FiX, FiEdit, FiTrash2, FiPlus, FiDownload, FiUpload, FiClock, FiSave } = FiIcons;
 
 function AdminPanel() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  const [pacerSettings, setPacerSettings] = useState({
+    pacerRoleTitle: 'Pacer',
+    shadowRoleTitle: 'Shadow Pacer',
+    allowMultiGroupVolunteering: true,
+    autoAssignPacers: true,
+    requireApproval: true
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'settings') {
+      loadPacerSettings();
+    }
+  }, [activeTab]);
+
+  const loadPacerSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await paceGroupService.getPacerSettings();
+      setPacerSettings(settings);
+    } catch (error) {
+      console.error('Failed to load pacer settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSavePacerSettings = async () => {
+    try {
+      await paceGroupService.updatePacerSettings(pacerSettings);
+      toast.success('Pacer settings updated successfully');
+    } catch (error) {
+      console.error('Failed to save pacer settings:', error);
+      toast.error('Failed to save pacer settings');
+    }
+  };
 
   if (!user?.isAdmin) {
     return (
@@ -115,9 +149,7 @@ function AdminPanel() {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
                         <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                        <p className={`text-sm font-medium mt-1 ${
-                          stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                        }`}>
+                        <p className={`text-sm font-medium mt-1 ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
                           {stat.change}
                         </p>
                       </div>
@@ -218,19 +250,21 @@ function AdminPanel() {
               <div className="bg-gray-50 rounded-xl p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Recent Sessions</h3>
                 <div className="space-y-3">
-                  {['Morning Run - Central Park', 'Hill Training - Hill Park', 'Weekend Long Run - Riverside'].map((session, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                      <span className="text-gray-900">{session}</span>
-                      <div className="flex space-x-2">
-                        <button className="p-2 text-gray-600 hover:text-blue-600 rounded-lg hover:bg-blue-50">
-                          <SafeIcon icon={FiEdit} className="w-4 h-4" />
-                        </button>
-                        <button className="p-2 text-gray-600 hover:text-red-600 rounded-lg hover:bg-red-50">
-                          <SafeIcon icon={FiTrash2} className="w-4 h-4" />
-                        </button>
+                  {['Morning Run - Central Park', 'Hill Training - Hill Park', 'Weekend Long Run - Riverside'].map(
+                    (session, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <span className="text-gray-900">{session}</span>
+                        <div className="flex space-x-2">
+                          <button className="p-2 text-gray-600 hover:text-blue-600 rounded-lg hover:bg-blue-50">
+                            <SafeIcon icon={FiEdit} className="w-4 h-4" />
+                          </button>
+                          <button className="p-2 text-gray-600 hover:text-red-600 rounded-lg hover:bg-red-50">
+                            <SafeIcon icon={FiTrash2} className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -239,7 +273,6 @@ function AdminPanel() {
           {activeTab === 'notifications' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Send Notifications</h2>
-              
               <div className="bg-gray-50 rounded-xl p-6">
                 <form className="space-y-4">
                   <div>
@@ -252,7 +285,6 @@ function AdminPanel() {
                       <option>Emergency Alert</option>
                     </select>
                   </div>
-                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Title
@@ -263,7 +295,6 @@ function AdminPanel() {
                       placeholder="Enter notification title"
                     />
                   </div>
-                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Message
@@ -274,7 +305,6 @@ function AdminPanel() {
                       placeholder="Enter notification message"
                     />
                   </div>
-                  
                   <div className="flex space-x-4">
                     <button
                       type="submit"
@@ -299,39 +329,141 @@ function AdminPanel() {
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">System Settings</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">App Configuration</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">Auto-approve Facebook users</span>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="font-semibold text-gray-900 mb-4">App Configuration</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-700">Auto-approve Facebook users</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" defaultChecked />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-700">Require admin approval for phone users</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" defaultChecked />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">Require admin approval for phone users</span>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="font-semibold text-gray-900 mb-4">Facebook Integration</h3>
+                      <div className="space-y-4">
+                        <button className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                          Connect Facebook Group
+                        </button>
+                        <button className="w-full p-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                          Sync Group Members
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Facebook Integration</h3>
-                  <div className="space-y-4">
-                    <button className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                      Connect Facebook Group
-                    </button>
-                    <button className="w-full p-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                      Sync Group Members
-                    </button>
+                  
+                  {/* Pace Group Settings */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-900">Pace Group Settings</h3>
+                      <button 
+                        onClick={handleSavePacerSettings}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
+                      >
+                        <SafeIcon icon={FiSave} className="w-4 h-4" />
+                        <span>Save Settings</span>
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Primary Pacer Title</label>
+                        <input
+                          type="text"
+                          value={pacerSettings.pacerRoleTitle}
+                          onChange={(e) => setPacerSettings({...pacerSettings, pacerRoleTitle: e.target.value})}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Title for members who lead pace groups</p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Shadow Pacer Title</label>
+                        <input
+                          type="text"
+                          value={pacerSettings.shadowRoleTitle}
+                          onChange={(e) => setPacerSettings({...pacerSettings, shadowRoleTitle: e.target.value})}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Title for members who assist primary pacers</p>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <SafeIcon icon={FiUsers} className="w-5 h-5 text-gray-600" />
+                          <div>
+                            <p className="font-medium text-gray-900">Allow Multi-Group Volunteering</p>
+                            <p className="text-xs text-gray-600">Allow pacers to volunteer for multiple pace groups at once</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={pacerSettings.allowMultiGroupVolunteering} 
+                            onChange={(e) => setPacerSettings({...pacerSettings, allowMultiGroupVolunteering: e.target.checked})}
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <SafeIcon icon={FiActivity} className="w-5 h-5 text-gray-600" />
+                          <div>
+                            <p className="font-medium text-gray-900">Auto-Assign Pacers</p>
+                            <p className="text-xs text-gray-600">Automatically assign pacers based on their preferences</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={pacerSettings.autoAssignPacers}
+                            onChange={(e) => setPacerSettings({...pacerSettings, autoAssignPacers: e.target.checked})} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <SafeIcon icon={FiCheck} className="w-5 h-5 text-gray-600" />
+                          <div>
+                            <p className="font-medium text-gray-900">Require Approval</p>
+                            <p className="text-xs text-gray-600">Require admin approval for pacer assignments</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={pacerSettings.requireApproval}
+                            onChange={(e) => setPacerSettings({...pacerSettings, requireApproval: e.target.checked})}
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
         </div>

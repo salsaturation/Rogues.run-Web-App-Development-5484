@@ -248,31 +248,26 @@ export function AuthProvider({ children }) {
   const updateUserProfile = async (updates) => {
     try {
       if (!user) return;
-
-      const { error } = await supabase
-        .from('users_rogues_7a9k2m')
-        .update({
-          name: updates.name,
-          phone: updates.phone,
-          location: updates.location,
-          bio: updates.bio,
-          pace_preferences: updates.pacePreferences || [],
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
+      
+      // Use the custom RPC function to update by email instead of ID
+      const { data, error } = await supabase
+        .rpc('update_user_profile', {
+          user_email: user.email,
+          user_name: updates.name,
+          user_phone: updates.phone,
+          user_location: updates.location,
+          user_bio: updates.bio,
+          user_pace_preferences: updates.pacePreferences || []
+        });
 
       if (error) throw error;
-
-      const updatedUser = {
-        ...user,
-        ...updates
-      };
-
+      
+      const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
       localStorage.setItem('rogues-user', JSON.stringify(updatedUser));
       toast.success('Profile updated successfully');
     } catch (error) {
-      toast.error('Failed to update profile');
+      toast.error('Failed to update profile: ' + error.message);
       throw error;
     }
   };
