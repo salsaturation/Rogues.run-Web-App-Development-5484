@@ -34,10 +34,8 @@ export const convertPace = (pace, fromUnit, toUnit) => {
 // Format pace display (e.g., "5:30 min/km")
 export const formatPaceWithUnit = (pace, unit) => {
   if (!pace || isNaN(pace)) return 'N/A';
-  
   const minutes = Math.floor(pace);
   const seconds = Math.round((pace - minutes) * 60);
-  
   return `${minutes}:${seconds.toString().padStart(2, '0')} min/${unit}`;
 };
 
@@ -50,7 +48,6 @@ export const formatDistanceWithUnit = (distance, unit) => {
 // Convert distance based on preferred unit
 export const convertDistance = (distance, fromUnit, toUnit) => {
   if (!distance || isNaN(distance)) return 0;
-  
   if (fromUnit === toUnit) return Number(distance);
   
   if (fromUnit === DISTANCE_UNITS.KILOMETERS && toUnit === DISTANCE_UNITS.MILES) {
@@ -60,4 +57,36 @@ export const convertDistance = (distance, fromUnit, toUnit) => {
   }
   
   return Number(distance);
+};
+
+// Get the storage unit (always km) and display unit (user preference)
+export const getUnits = (userPreference) => {
+  return {
+    storageUnit: DISTANCE_UNITS.KILOMETERS, // Always store in km
+    displayUnit: userPreference || DISTANCE_UNITS.KILOMETERS // Display in user preference or km
+  };
+};
+
+// Convert pace from display unit to storage unit (for saving to database)
+export const convertPaceToStorage = (pace, userUnit) => {
+  if (!pace || isNaN(pace)) return pace;
+  
+  // If user is using miles, convert to km for storage
+  if (userUnit === DISTANCE_UNITS.MILES) {
+    return convertPace(pace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
+  }
+  
+  return pace; // Already in km
+};
+
+// Convert pace from storage unit to display unit (for showing to user)
+export const convertPaceFromStorage = (pace, userUnit) => {
+  if (!pace || isNaN(pace)) return pace;
+  
+  // If user is using miles, convert from km to miles for display
+  if (userUnit === DISTANCE_UNITS.MILES) {
+    return convertPace(pace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+  }
+  
+  return pace; // Already in km, user also uses km
 };
