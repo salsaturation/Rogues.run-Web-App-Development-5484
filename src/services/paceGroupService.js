@@ -12,9 +12,9 @@ export const paceGroupService = {
         .select('*')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       return data.map(group => ({
         id: group.id,
         name: group.name,
@@ -41,7 +41,7 @@ export const paceGroupService = {
     try {
       // Get all standard pace groups first
       const allGroups = await this.getStandardPaceGroups();
-      
+
       // If the paces are in miles, convert to km for comparison
       let minPaceKm = sessionMinPace;
       let maxPaceKm = sessionMaxPace;
@@ -50,13 +50,13 @@ export const paceGroupService = {
         minPaceKm = convertPace(sessionMinPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
         maxPaceKm = convertPace(sessionMaxPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
       }
-      
+
       // Filter groups manually
       const suggestedGroups = allGroups.filter(group => {
         // Check if there's any overlap between session pace and group pace
         return (group.minPace <= maxPaceKm && group.maxPace >= minPaceKm);
       });
-      
+
       // Convert the pace values back to the user's preferred unit
       return suggestedGroups.map(group => {
         let minPaceDisplay = group.minPace;
@@ -96,19 +96,27 @@ export const paceGroupService = {
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
           .maybeSingle();
-        
+
         if (userError || !userData) {
           throw new Error('User not found');
         }
+        
         createdBy = userData.id;
       } else {
         createdBy = userId;
       }
-      
+
+      // Handle numeric fields - convert empty strings to null
+      const cleanNumericField = (value) => {
+        if (value === '' || value === undefined || value === null) return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       // Make sure the pace values are in kilometers for storage
-      const minPace = groupData.minPace;
-      const maxPace = groupData.maxPace;
-      
+      const minPace = cleanNumericField(groupData.minPace);
+      const maxPace = cleanNumericField(groupData.maxPace);
+
       const { data, error } = await supabase
         .from('standard_pace_groups_rogues_7a9k2m')
         .insert([{
@@ -124,9 +132,8 @@ export const paceGroupService = {
         }])
         .select()
         .single();
-      
+
       if (error) throw error;
-      
       toast.success('Standard pace group created successfully');
       return data;
     } catch (error) {
@@ -139,10 +146,17 @@ export const paceGroupService = {
   // Update standard pace group
   async updateStandardPaceGroup(groupId, groupData) {
     try {
+      // Handle numeric fields - convert empty strings to null
+      const cleanNumericField = (value) => {
+        if (value === '' || value === undefined || value === null) return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       // Make sure the pace values are in kilometers for storage
-      const minPace = groupData.minPace;
-      const maxPace = groupData.maxPace;
-      
+      const minPace = cleanNumericField(groupData.minPace);
+      const maxPace = cleanNumericField(groupData.maxPace);
+
       const { error } = await supabase
         .from('standard_pace_groups_rogues_7a9k2m')
         .update({
@@ -157,9 +171,8 @@ export const paceGroupService = {
           updated_at: new Date().toISOString()
         })
         .eq('id', groupId);
-      
+
       if (error) throw error;
-      
       toast.success('Standard pace group updated successfully');
       return true;
     } catch (error) {
@@ -176,9 +189,8 @@ export const paceGroupService = {
         .from('standard_pace_groups_rogues_7a9k2m')
         .update({ is_active: false })
         .eq('id', groupId);
-      
+
       if (error) throw error;
-      
       toast.success('Pace group deleted successfully');
     } catch (error) {
       console.error('Failed to delete pace group:', error);
@@ -198,14 +210,14 @@ export const paceGroupService = {
             user_id,
             role,
             status,
-            user:users_rogues_7a9k2m(name, email)
+            user:users_rogues_7a9k2m(name,email)
           )
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       return data.map(group => ({
         id: group.id,
         sessionId: group.session_id,
@@ -228,22 +240,28 @@ export const paceGroupService = {
   // Create pace group for session
   async createPaceGroup(groupData) {
     try {
+      // Handle numeric fields - convert empty strings to null
+      const cleanNumericField = (value) => {
+        if (value === '' || value === undefined || value === null) return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       const { data, error } = await supabase
         .from('pace_groups_rogues_7a9k2m')
         .insert([{
           session_id: groupData.sessionId,
           name: groupData.name,
-          min_pace: groupData.minPace,
-          max_pace: groupData.maxPace,
+          min_pace: cleanNumericField(groupData.minPace),
+          max_pace: cleanNumericField(groupData.maxPace),
           description: groupData.description,
           required_pacers: groupData.requiredPacers,
           shadow_slots: groupData.shadowSlots
         }])
         .select()
         .single();
-      
+
       if (error) throw error;
-      
       return data;
     } catch (error) {
       console.error('Failed to create pace group:', error);
@@ -258,9 +276,8 @@ export const paceGroupService = {
         .from('pace_groups_rogues_7a9k2m')
         .delete()
         .eq('id', groupId);
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to delete pace group:', error);
@@ -275,7 +292,7 @@ export const paceGroupService = {
         .from('pacer_settings_rogues_7a9k2m')
         .select('*')
         .single();
-      
+
       if (error) {
         // Return default settings if none exist
         return {
@@ -286,7 +303,7 @@ export const paceGroupService = {
           requireApproval: true
         };
       }
-      
+
       return {
         pacerRoleTitle: data.pacer_role_title,
         shadowRoleTitle: data.shadow_role_title,
@@ -320,9 +337,8 @@ export const paceGroupService = {
           require_approval: settings.requireApproval,
           updated_at: new Date().toISOString()
         });
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to update pacer settings:', error);
@@ -362,9 +378,8 @@ export const paceGroupService = {
           role: role,
           status: 'pending'
         }]);
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to volunteer as pacer:', error);
@@ -380,9 +395,8 @@ export const paceGroupService = {
         .delete()
         .eq('pace_group_id', groupId)
         .eq('user_id', userId);
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to cancel pacer volunteer:', error);
@@ -399,9 +413,8 @@ export const paceGroupService = {
         .eq('pace_group_id', groupId)
         .eq('user_id', userId)
         .eq('role', role);
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to approve pacer volunteer:', error);
@@ -417,9 +430,8 @@ export const paceGroupService = {
         .delete()
         .eq('pace_group_id', groupId)
         .eq('user_id', userId);
-      
+
       if (error) throw error;
-      
       return true;
     } catch (error) {
       console.error('Failed to reject pacer volunteer:', error);

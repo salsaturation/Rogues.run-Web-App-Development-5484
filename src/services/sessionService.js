@@ -11,14 +11,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email),
+          creator:users_rogues_7a9k2m!created_by(name,email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           )
         `)
         .order('session_date', { ascending: true });
@@ -71,14 +71,14 @@ export const sessionService = {
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email),
+          creator:users_rogues_7a9k2m!created_by(name,email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name, email, picture)
+            user:users_rogues_7a9k2m(name,email,picture)
           )
         `)
         .eq('id', sessionId)
@@ -168,6 +168,13 @@ export const sessionService = {
       // Extract pace groups from session data
       const paceGroups = sessionData.paceGroups || [];
 
+      // Handle numeric fields - convert empty strings to null
+      const cleanNumericField = (value) => {
+        if (value === '' || value === undefined || value === null) return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       // Prepare session data for insert
       const sessionInsertData = {
         title: sessionData.title,
@@ -180,15 +187,15 @@ export const sessionService = {
         created_by: createdBy,
         // Enhanced fields
         start_location_name: sessionData.startLocationName,
-        start_location_lat: sessionData.startLocationLat,
-        start_location_lng: sessionData.startLocationLng,
+        start_location_lat: cleanNumericField(sessionData.startLocationLat),
+        start_location_lng: cleanNumericField(sessionData.startLocationLng),
         start_location_address: sessionData.startLocationAddress,
         route_type: sessionData.routeType,
         route_map: sessionData.routeMap,
-        total_distance: sessionData.totalDistance,
+        total_distance: cleanNumericField(sessionData.totalDistance),
         run_type: sessionData.runType,
-        pace_min: sessionData.paceMin,
-        pace_max: sessionData.paceMax,
+        pace_min: cleanNumericField(sessionData.paceMin),
+        pace_max: cleanNumericField(sessionData.paceMax),
         difficulty: sessionData.difficulty,
         waitlist_enabled: sessionData.waitlistEnabled,
         special_instructions: sessionData.specialInstructions,
@@ -210,8 +217,8 @@ export const sessionService = {
             await paceGroupService.createPaceGroup({
               sessionId: data.id,
               name: group.name,
-              minPace: group.minPace,
-              maxPace: group.maxPace,
+              minPace: cleanNumericField(group.minPace),
+              maxPace: cleanNumericField(group.maxPace),
               description: group.description,
               requiredPacers: group.requiredPacers,
               shadowSlots: group.shadowSlots
@@ -250,6 +257,7 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
+        
         userUuid = userData.id;
       } else {
         userUuid = userId;
@@ -275,25 +283,19 @@ export const sessionService = {
           .eq('user_id', userUuid);
 
         if (error) throw error;
-
         toast.success('Left session successfully');
         return false; // Not joined
       } else {
         // Join session
         const { error } = await supabase
           .from('session_attendees_rogues_7a9k2m')
-          .insert([{
-            session_id: sessionId,
-            user_id: userUuid
-          }]);
+          .insert([{ session_id: sessionId, user_id: userUuid }]);
 
         if (error) throw error;
 
         // Update user's session count
         try {
-          await supabase.rpc('increment_sessions_attended', {
-            user_id: userUuid
-          });
+          await supabase.rpc('increment_sessions_attended', { user_id: userUuid });
         } catch (rpcError) {
           console.error('Failed to update session count:', rpcError);
           // Continue even if this fails
@@ -326,6 +328,7 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
+        
         userUuid = userData.id;
       } else {
         userUuid = userId;
@@ -351,20 +354,15 @@ export const sessionService = {
           .eq('user_id', userUuid);
 
         if (error) throw error;
-
         toast.success('Removed from interested list');
         return false; // Not interested
       } else {
         // Add interest
         const { error } = await supabase
           .from('session_interested_users_rogues_7a9k2m')
-          .insert([{
-            session_id: sessionId,
-            user_id: userUuid
-          }]);
+          .insert([{ session_id: sessionId, user_id: userUuid }]);
 
         if (error) throw error;
-
         toast.success('Added to interested list');
         return true; // Interested
       }
@@ -404,7 +402,7 @@ export const sessionService = {
         console.error('Error checking interest:', error);
         return false;
       }
-
+      
       return data && data.length > 0;
     } catch (error) {
       console.error('Error checking interest:', error);
@@ -425,6 +423,13 @@ export const sessionService = {
         }
       }
 
+      // Handle numeric fields - convert empty strings to null
+      const cleanNumericField = (value) => {
+        if (value === '' || value === undefined || value === null) return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       // Extract pace groups from updates
       const paceGroups = updates.paceGroups || [];
 
@@ -441,15 +446,15 @@ export const sessionService = {
           updated_at: new Date().toISOString(),
           // Enhanced fields
           start_location_name: updates.startLocationName,
-          start_location_lat: updates.startLocationLat,
-          start_location_lng: updates.startLocationLng,
+          start_location_lat: cleanNumericField(updates.startLocationLat),
+          start_location_lng: cleanNumericField(updates.startLocationLng),
           start_location_address: updates.startLocationAddress,
           route_type: updates.routeType,
           route_map: updates.routeMap,
-          total_distance: updates.totalDistance,
+          total_distance: cleanNumericField(updates.totalDistance),
           run_type: updates.runType,
-          pace_min: updates.paceMin,
-          pace_max: updates.paceMax,
+          pace_min: cleanNumericField(updates.paceMin),
+          pace_max: cleanNumericField(updates.paceMax),
           difficulty: updates.difficulty,
           waitlist_enabled: updates.waitlistEnabled,
           special_instructions: updates.specialInstructions,
@@ -479,8 +484,8 @@ export const sessionService = {
             await paceGroupService.createPaceGroup({
               sessionId: sessionId,
               name: group.name,
-              minPace: group.minPace,
-              maxPace: group.maxPace,
+              minPace: cleanNumericField(group.minPace),
+              maxPace: cleanNumericField(group.maxPace),
               description: group.description,
               requiredPacers: group.requiredPacers,
               shadowSlots: group.shadowSlots
@@ -508,7 +513,6 @@ export const sessionService = {
         .eq('id', sessionId);
 
       if (error) throw error;
-
       toast.success('Session deleted successfully');
     } catch (error) {
       console.error('Failed to delete session:', error);
@@ -524,13 +528,18 @@ export const sessionService = {
         .from('session_attendees_rogues_7a9k2m')
         .select(`
           session:sessions_rogues_7a9k2m(
-            id, title, description, session_date, session_time, location, status
+            id,
+            title,
+            description,
+            session_date,
+            session_time,
+            location,
+            status
           )
         `)
         .eq('user_id', userId);
 
       if (error) throw error;
-
       return data.map(item => item.session);
     } catch (error) {
       console.error('Failed to fetch user sessions:', error);
@@ -610,13 +619,12 @@ export const sessionService = {
         .from('session_comments_rogues_7a9k2m')
         .select(`
           *,
-          user:users_rogues_7a9k2m!user_id(name, email, picture)
+          user:users_rogues_7a9k2m!user_id(name,email,picture)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
       return data;
     } catch (error) {
       console.error('Failed to fetch session comments:', error);
@@ -641,6 +649,7 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
+        
         userUuid = userData.id;
       } else {
         userUuid = userId;
@@ -655,7 +664,6 @@ export const sessionService = {
         }]);
 
       if (error) throw error;
-
       toast.success('Comment added successfully');
       return true;
     } catch (error) {
