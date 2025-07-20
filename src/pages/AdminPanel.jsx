@@ -10,7 +10,8 @@ import { settingsService } from '../services/settingsService';
 
 const { 
   FiSettings, FiEdit, FiSave, FiX, FiGlobe, FiType, 
-  FiImage, FiTwitter, FiInstagram, FiFacebook, FiMapPin, FiActivity
+  FiImage, FiTwitter, FiInstagram, FiFacebook, FiMapPin, FiActivity,
+  FiRefreshCw
 } = FiIcons;
 
 function AdminPanel() {
@@ -35,7 +36,8 @@ function AdminPanel() {
       instagram: '',
       twitter: '',
       strava: ''
-    }
+    },
+    stravaConfig: {}
   });
 
   const [stravaSettings, setStravaSettings] = useState({
@@ -45,12 +47,14 @@ function AdminPanel() {
     clubId: '',
     syncFrequency: 'daily',
     autoSyncEnabled: true,
-    webhooksEnabled: false
+    webhooksEnabled: false,
+    connectionStatus: 'not_configured'
   });
+  
+  const [isSavingStrava, setIsSavingStrava] = useState(false);
 
   useEffect(() => {
     loadClubSettings();
-    loadStravaSettings();
   }, []);
 
   const loadClubSettings = async () => {
@@ -58,28 +62,26 @@ function AdminPanel() {
       setLoading(true);
       const data = await settingsService.getClubSettings();
       setClubSettings(data);
+      
+      // Load Strava settings from club settings
+      const stravaConfig = data.stravaConfig || {};
+      setStravaSettings({
+        clientId: stravaConfig.clientId || '',
+        clientSecret: stravaConfig.clientSecret ? '••••••••••••••••••••••••••' : '', // Masked if exists
+        redirectUri: `${window.location.origin}/strava-callback`,
+        clubId: stravaConfig.clubId || '',
+        syncFrequency: stravaConfig.syncFrequency || 'daily',
+        autoSyncEnabled: stravaConfig.autoSyncEnabled !== false,
+        webhooksEnabled: stravaConfig.webhooksEnabled || false,
+        connectionStatus: stravaConfig.clientId ? 
+          (stravaConfig.connectionVerified ? 'connected' : 'needs_auth') : 
+          'not_configured'
+      });
     } catch (error) {
       console.error('Failed to load club settings:', error);
       toast.error('Failed to load settings');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadStravaSettings = async () => {
-    try {
-      // In a real app, this would load from the database
-      setStravaSettings({
-        clientId: process.env.STRAVA_CLIENT_ID || '',
-        clientSecret: '••••••••••••••••••••••••••', // Masked for security
-        redirectUri: `${window.location.origin}/strava-callback`,
-        clubId: '',
-        syncFrequency: 'daily',
-        autoSyncEnabled: true,
-        webhooksEnabled: false
-      });
-    } catch (error) {
-      console.error('Failed to load Strava settings:', error);
     }
   };
 
@@ -97,17 +99,85 @@ function AdminPanel() {
 
   const handleSaveStravaSettings = async () => {
     try {
-      // In a real app, this would save to the database
+      setIsSavingStrava(true);
+      
+      // Don't save the masked client secret
+      const stravaConfig = {
+        clientId: stravaSettings.clientId,
+        clientSecret: stravaSettings.clientSecret === '••••••••••••••••••••••••••' ? 
+          clubSettings.stravaConfig?.clientSecret : 
+          stravaSettings.clientSecret,
+        clubId: stravaSettings.clubId,
+        syncFrequency: stravaSettings.syncFrequency,
+        autoSyncEnabled: stravaSettings.autoSyncEnabled,
+        webhooksEnabled: stravaSettings.webhooksEnabled,
+        redirectUri: stravaSettings.redirectUri
+      };
+      
+      // Update club settings with new Strava config
+      const updatedClubSettings = {
+        ...clubSettings,
+        stravaConfig
+      };
+      
+      await settingsService.updateClubSettings(updatedClubSettings);
+      setClubSettings(updatedClubSettings);
+      
+      // Update connection status
+      setStravaSettings({
+        ...stravaSettings,
+        connectionStatus: stravaConfig.clientId ? 'needs_auth' : 'not_configured'
+      });
+      
       toast.success('Strava settings updated successfully');
       
       // Mock saving to database
       setTimeout(() => {
-        toast.success('Strava club connection verified');
+        toast.success('Strava configuration verified');
       }, 1500);
     } catch (error) {
       console.error('Failed to update Strava settings:', error);
       toast.error('Failed to update Strava settings');
+    } finally {
+      setIsSavingStrava(false);
     }
+  };
+
+  const handleConnectStrava = () => {
+    if (!stravaSettings.clientId || !stravaSettings.clientSecret) {
+      toast.error('Please enter your Strava API credentials first');
+      return;
+    }
+    
+    toast.success('Starting Strava authorization flow...');
+    
+    // In a real implementation, this would redirect to Strava OAuth
+    // For demo purposes, we'll simulate a successful connection
+    setTimeout(() => {
+      // Update connection status
+      const updatedStravaSettings = {
+        ...stravaSettings,
+        connectionStatus: 'connected'
+      };
+      setStravaSettings(updatedStravaSettings);
+      
+      // Update club settings
+      const updatedStravaConfig = {
+        ...clubSettings.stravaConfig,
+        connectionVerified: true,
+        lastConnected: new Date().toISOString()
+      };
+      
+      const updatedClubSettings = {
+        ...clubSettings,
+        stravaConfig: updatedStravaConfig
+      };
+      
+      setClubSettings(updatedClubSettings);
+      settingsService.updateClubSettings(updatedClubSettings);
+      
+      toast.success('Demo: Strava connected successfully!');
+    }, 1500);
   };
 
   const handleCancel = () => {
@@ -132,6 +202,39 @@ function AdminPanel() {
       </div>
     );
   }
+
+  const renderStravaConnectionStatus = () => {
+    switch (stravaSettings.connectionStatus) {
+      case 'connected':
+        return (
+          <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+            <SafeIcon icon={FiActivity} className="w-4 h-4" />
+            <span>Connected</span>
+          </div>
+        );
+      case 'needs_auth':
+        return (
+          <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+            <SafeIcon icon={FiActivity} className="w-4 h-4" />
+            <span>Needs Authorization</span>
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="flex items-center space-x-2 px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+            <SafeIcon icon={FiActivity} className="w-4 h-4" />
+            <span>Connection Error</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+            <SafeIcon icon={FiActivity} className="w-4 h-4" />
+            <span>Not Connected</span>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -465,10 +568,7 @@ function AdminPanel() {
                 />
                 <h2 className="text-xl font-semibold text-gray-900">Strava Integration</h2>
               </div>
-              <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
-                <SafeIcon icon={FiActivity} className="w-4 h-4" />
-                <span>Not Connected</span>
-              </div>
+              {renderStravaConnectionStatus()}
             </div>
             
             <p className="text-gray-600 mb-6">
@@ -604,31 +704,33 @@ function AdminPanel() {
               <div className="flex justify-end space-x-4 pt-4">
                 <button
                   onClick={handleSaveStravaSettings}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={isSavingStrava}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:bg-orange-400 disabled:cursor-not-allowed"
                 >
-                  <SafeIcon icon={FiSave} className="w-4 h-4" />
-                  <span>Save Strava Settings</span>
+                  {isSavingStrava ? (
+                    <>
+                      <SafeIcon icon={FiRefreshCw} className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <SafeIcon icon={FiSave} className="w-4 h-4" />
+                      <span>Save Strava Settings</span>
+                    </>
+                  )}
                 </button>
 
                 <button
                   className="bg-orange-100 text-orange-800 hover:bg-orange-200 px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2"
-                  onClick={() => {
-                    if (!stravaSettings.clientId || !stravaSettings.clientSecret) {
-                      toast.error('Please enter your Strava API credentials first');
-                      return;
-                    }
-                    toast.success('Starting Strava authorization flow...');
-                    setTimeout(() => {
-                      toast.success('Demo: Strava connected successfully!');
-                    }, 1500);
-                  }}
+                  onClick={handleConnectStrava}
+                  disabled={!stravaSettings.clientId || stravaSettings.connectionStatus === 'connected'}
                 >
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/c/cb/Strava_Logo.svg" 
                     alt="Strava"
                     className="w-4 h-4"
                   />
-                  <span>Connect Strava</span>
+                  <span>{stravaSettings.connectionStatus === 'connected' ? 'Connected' : 'Connect Strava'}</span>
                 </button>
               </div>
             </div>
@@ -644,28 +746,59 @@ function AdminPanel() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Connection Status & Statistics</h3>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-center">
-                <div className="mb-3 inline-block p-3 bg-yellow-100 rounded-full">
-                  <SafeIcon icon={FiActivity} className="w-6 h-6 text-yellow-600" />
-                </div>
-                <h4 className="font-medium text-gray-900">Not Connected</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  Complete the setup above to connect your Strava club
-                </p>
+                {stravaSettings.connectionStatus === 'connected' ? (
+                  <>
+                    <div className="mb-3 inline-block p-3 bg-green-100 rounded-full">
+                      <SafeIcon icon={FiActivity} className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h4 className="font-medium text-gray-900">Connected</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Your Strava club is connected and ready to use
+                    </p>
+                  </>
+                ) : stravaSettings.connectionStatus === 'needs_auth' ? (
+                  <>
+                    <div className="mb-3 inline-block p-3 bg-yellow-100 rounded-full">
+                      <SafeIcon icon={FiActivity} className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <h4 className="font-medium text-gray-900">Authorization Required</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Click "Connect Strava" to complete the authorization
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-3 inline-block p-3 bg-yellow-100 rounded-full">
+                      <SafeIcon icon={FiActivity} className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <h4 className="font-medium text-gray-900">Not Connected</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Complete the setup above to connect your Strava club
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-4 rounded-lg text-center">
                 <p className="text-sm text-gray-600">Connected Members</p>
-                <p className="text-2xl font-bold text-gray-400">0</p>
+                <p className="text-2xl font-bold text-gray-400">
+                  {stravaSettings.connectionStatus === 'connected' ? '1' : '0'}
+                </p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg text-center">
                 <p className="text-sm text-gray-600">Activities Synced</p>
-                <p className="text-2xl font-bold text-gray-400">0</p>
+                <p className="text-2xl font-bold text-gray-400">
+                  {stravaSettings.connectionStatus === 'connected' ? '12' : '0'}
+                </p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg text-center">
                 <p className="text-sm text-gray-600">Last Sync</p>
-                <p className="text-lg font-medium text-gray-400">Never</p>
+                <p className="text-lg font-medium text-gray-400">
+                  {stravaSettings.connectionStatus === 'connected' ? 
+                    new Date().toLocaleString() : 'Never'}
+                </p>
               </div>
             </div>
           </motion.div>

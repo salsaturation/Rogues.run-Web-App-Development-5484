@@ -30,7 +30,8 @@ export const settingsService = {
             instagram: '',
             twitter: '',
             strava: ''
-          }
+          },
+          stravaConfig: {}
         };
       }
 
@@ -50,7 +51,8 @@ export const settingsService = {
           instagram: '',
           twitter: '',
           strava: ''
-        }
+        },
+        stravaConfig: data.strava_config || {}
       };
     } catch (error) {
       console.error('Failed to fetch club settings:', error);
@@ -71,7 +73,8 @@ export const settingsService = {
           instagram: '',
           twitter: '',
           strava: ''
-        }
+        },
+        stravaConfig: {}
       };
     }
   },
@@ -94,6 +97,7 @@ export const settingsService = {
           website: settings.website,
           distance_unit: settings.distanceUnit || DISTANCE_UNITS.KILOMETERS,
           social_media: settings.socialMedia,
+          strava_config: settings.stravaConfig || {},
           updated_at: new Date().toISOString()
         });
 
@@ -101,12 +105,73 @@ export const settingsService = {
         console.error('Error updating settings:', error);
         throw error;
       }
-
+      
       toast.success('Settings updated successfully');
       return true;
     } catch (error) {
       console.error('Failed to update club settings:', error);
       toast.error('Failed to update settings');
+      throw error;
+    }
+  },
+
+  // Get Strava configuration
+  async getStravaConfig() {
+    try {
+      const { data, error } = await supabase
+        .from('club_settings_rogues_7a9k2m')
+        .select('strava_config')
+        .single();
+
+      if (error) {
+        console.error('Error fetching Strava config:', error);
+        return {};
+      }
+
+      return data.strava_config || {};
+    } catch (error) {
+      console.error('Failed to fetch Strava config:', error);
+      return {};
+    }
+  },
+
+  // Update Strava configuration
+  async updateStravaConfig(stravaConfig) {
+    try {
+      // First get existing club settings
+      const { data, error: fetchError } = await supabase
+        .from('club_settings_rogues_7a9k2m')
+        .select('*')
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // Not found is ok
+        console.error('Error fetching club settings:', fetchError);
+        throw fetchError;
+      }
+
+      // Update with new Strava config
+      const { error: updateError } = await supabase
+        .from('club_settings_rogues_7a9k2m')
+        .upsert({
+          id: 1,
+          strava_config: stravaConfig,
+          // Keep existing data or use defaults
+          club_name: data?.club_name || 'Rogues.run',
+          club_tagline: data?.club_tagline || 'Join the Running Revolution',
+          club_motto: data?.club_motto || 'Every step counts, every mile matters',
+          updated_at: new Date().toISOString()
+        });
+
+      if (updateError) {
+        console.error('Error updating Strava config:', updateError);
+        throw updateError;
+      }
+      
+      toast.success('Strava configuration updated');
+      return true;
+    } catch (error) {
+      console.error('Failed to update Strava config:', error);
+      toast.error('Failed to update Strava configuration');
       throw error;
     }
   },
@@ -147,7 +212,7 @@ export const settingsService = {
         console.error('Error fetching user settings:', fetchError);
         throw fetchError;
       }
-
+      
       // Merge existing preferences with new settings
       const currentPreferences = data?.user_preferences || {};
       const updatedPreferences = { ...currentPreferences, ...settings };
@@ -155,7 +220,7 @@ export const settingsService = {
       // Update the user preferences
       const { error: updateError } = await supabase
         .from('users_rogues_7a9k2m')
-        .update({ 
+        .update({
           user_preferences: updatedPreferences,
           updated_at: new Date().toISOString()
         })
@@ -165,7 +230,7 @@ export const settingsService = {
         console.error('Error updating user settings:', updateError);
         throw updateError;
       }
-
+      
       toast.success('Your preferences have been updated');
       return true;
     } catch (error) {
