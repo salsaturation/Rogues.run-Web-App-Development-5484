@@ -6,6 +6,48 @@ const STRAVA_CLIENT_SECRET = process.env.VITE_STRAVA_CLIENT_SECRET;
 const STRAVA_REDIRECT_URI = `${window.location.origin}/strava-callback`;
 
 export const stravaService = {
+  // Check if Strava is configured and connected
+  async checkConnectionStatus() {
+    try {
+      // This would check if admin has configured Strava API keys
+      // and if the current user has connected their Strava account
+      
+      // In a real app, this would check the database
+      // For demo, we'll simulate different states based on URL param
+      const urlParams = new URLSearchParams(window.location.search);
+      const demoState = urlParams.get('strava_state');
+      
+      // Check for admin configuration first
+      const { data: settings } = await supabase
+        .from('club_settings_rogues_7a9k2m')
+        .select('strava_config')
+        .single();
+      
+      const hasAdminConfig = settings?.strava_config?.client_id;
+      
+      if (!hasAdminConfig) {
+        // Admin hasn't configured Strava yet
+        return { status: 'not_configured' };
+      }
+      
+      // For demo purposes, allow overriding the status with URL param
+      if (demoState) {
+        return { status: demoState }; // 'connected', 'not_configured', 'needs_auth', 'error'
+      }
+      
+      // Check if current user has connected their account
+      if (window.localStorage.getItem('strava_demo_connected') === 'true') {
+        return { status: 'connected' };
+      }
+      
+      // User needs to authorize
+      return { status: 'needs_auth' };
+    } catch (error) {
+      console.error('Error checking Strava connection:', error);
+      return { status: 'error', error: error.message };
+    }
+  },
+
   // Strava OAuth
   async initiateStravaAuth() {
     const scope = 'read,activity:read,activity:read_all';
@@ -17,7 +59,7 @@ export const stravaService = {
     try {
       const response = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           client_id: STRAVA_CLIENT_ID,
           client_secret: STRAVA_CLIENT_SECRET,
@@ -27,7 +69,7 @@ export const stravaService = {
       });
 
       const data = await response.json();
-      
+
       // Store tokens in database
       const { error } = await supabase
         .from('strava_connections_rogues_7a9k2m')
@@ -41,6 +83,9 @@ export const stravaService = {
         });
 
       if (error) throw error;
+
+      // For demo
+      window.localStorage.setItem('strava_demo_connected', 'true');
       
       toast.success('Successfully connected to Strava!');
       return true;
@@ -112,7 +157,7 @@ export const stravaService = {
           // Check if activity matches goal criteria
           if (this.activityMatchesGoal(activity, goal)) {
             const contribution = this.calculateGoalContribution(activity, goal);
-            
+
             // Record progress
             await supabase
               .from('goal_progress_rogues_7a9k2m')
@@ -236,7 +281,7 @@ export const stravaService = {
     try {
       const response = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           client_id: STRAVA_CLIENT_ID,
           client_secret: STRAVA_CLIENT_SECRET,
@@ -275,11 +320,7 @@ export const stravaService = {
 
       const response = await fetch(
         `https://www.strava.com/api/v3/athlete/activities?${params}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        }
+        { headers: {'Authorization': `Bearer ${accessToken}`} }
       );
 
       return await response.json();
