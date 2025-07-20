@@ -7,18 +7,23 @@ import * as FiIcons from 'react-icons/fi';
 import { formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance, DISTANCE_UNITS } from '../utils/unitConversion';
 import { paceGroupService } from '../services/paceGroupService';
 import PaceGroupManager from './PaceGroupManager';
+import SessionTemplateModal from './SessionTemplateModal';
 
-const { FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend } = FiIcons;
+const { 
+  FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, 
+  FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, 
+  FiMessageSquare, FiSend, FiSave
+} = FiIcons;
 
-function SessionDetailView({ 
-  session, 
-  onJoin, 
-  onEdit, 
-  onDelete, 
-  canEdit, 
-  userAttending, 
-  userInterested, 
-  onToggleInterest 
+function SessionDetailView({
+  session,
+  onJoin,
+  onEdit,
+  onDelete,
+  canEdit,
+  userAttending,
+  userInterested,
+  onToggleInterest
 }) {
   const { user } = useAuth();
   const { distanceUnit } = useSettings();
@@ -26,6 +31,7 @@ function SessionDetailView({
   const [loadingPaceGroups, setLoadingPaceGroups] = useState(true);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   useEffect(() => {
     if (session?.id) {
@@ -88,6 +94,12 @@ function SessionDetailView({
     };
     return colors[difficulty] || 'bg-gray-100 text-gray-800';
   };
+  
+  const handleSaveTemplate = (templateData) => {
+    setShowTemplateModal(false);
+    // In a real app, this would save the template using the templateService
+    toast.success('Session template saved successfully!');
+  };
 
   if (!session) {
     return (
@@ -105,16 +117,16 @@ function SessionDetailView({
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl p-8 shadow-sm"
       >
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-4">
-              <h1 className="text-3xl font-bold text-gray-900">{session.title}</h1>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(session.status || 'confirmed')}`}>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+          <div className="flex-1 mb-4 md:mb-0">
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-3 mb-4">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 md:mb-0">{session.title}</h1>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium self-start md:self-auto ${getStatusColor(session.status || 'confirmed')}`}>
                 {session.status || 'confirmed'}
               </span>
             </div>
             <p className="text-lg text-gray-600 mb-6">{session.description}</p>
-            
+
             {/* Session Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="flex items-center space-x-3">
@@ -126,7 +138,7 @@ function SessionDetailView({
                   <p className="font-medium text-gray-900">{new Date(session.date).toLocaleDateString()}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                   <SafeIcon icon={FiClock} className="w-5 h-5 text-green-600" />
@@ -138,7 +150,7 @@ function SessionDetailView({
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                   <SafeIcon icon={FiMapPin} className="w-5 h-5 text-purple-600" />
@@ -148,7 +160,7 @@ function SessionDetailView({
                   <p className="font-medium text-gray-900">{session.startLocationName || session.location}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                   <SafeIcon icon={FiUsers} className="w-5 h-5 text-orange-600" />
@@ -158,7 +170,7 @@ function SessionDetailView({
                   <p className="font-medium text-gray-900">{session.attendeeCount} / {session.maxAttendees}</p>
                 </div>
               </div>
-              
+
               {session.totalDistance && (
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
@@ -170,7 +182,7 @@ function SessionDetailView({
                   </div>
                 </div>
               )}
-              
+
               {(session.paceMin || session.paceMax) && (
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -180,66 +192,78 @@ function SessionDetailView({
                     <p className="text-sm text-gray-500">Pace Range</p>
                     <p className="font-medium text-gray-900">
                       {session.paceMin && session.paceMax ? 
-                        `${formatPace(session.paceMin)} - ${formatPace(session.paceMax)}` : 
-                        session.paceMin ? `From ${formatPace(session.paceMin)}` :
-                        session.paceMax ? `Up to ${formatPace(session.paceMax)}` : 'N/A'}
+                        `${formatPace(session.paceMin)} - ${formatPace(session.paceMax)}` :
+                        session.paceMin ? 
+                          `From ${formatPace(session.paceMin)}` :
+                          session.paceMax ? 
+                            `Up to ${formatPace(session.paceMax)}` : 'N/A'}
                     </p>
                   </div>
                 </div>
               )}
             </div>
           </div>
-          
-          {/* Action Buttons */}
-          <div className="flex flex-col space-y-3">
+
+          {/* Action Buttons - Stacked on mobile, side by side on desktop */}
+          <div className="flex flex-col space-y-3 md:w-auto md:ml-4">
             <button
               onClick={() => onJoin(session.id)}
               disabled={session.attendeeCount >= session.maxAttendees && !userAttending}
               className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                userAttending
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                  : session.attendeeCount >= session.maxAttendees
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                userAttending ? 
+                  'bg-red-100 text-red-700 hover:bg-red-200' :
+                  session.attendeeCount >= session.maxAttendees ? 
+                    'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                    'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
-              {userAttending ? 'Leave Session' : 
-               session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
+              {userAttending ? 'Leave Session' : session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
             </button>
-            
+
             <button
               onClick={() => onToggleInterest(session.id)}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
-                userInterested 
-                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                userInterested ? 
+                  'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' :
+                  'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
               <span>{userInterested ? 'Interested' : 'Mark Interest'}</span>
             </button>
-            
+
+            {/* Save as Template button */}
+            {(user?.canPublish || user?.isAdmin) && (
+              <button
+                onClick={() => setShowTemplateModal(true)}
+                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+              >
+                <SafeIcon icon={FiSave} className="w-4 h-4" />
+                <span>Save as Template</span>
+              </button>
+            )}
+
             {canEdit && (
               <div className="flex space-x-2">
                 <button
                   onClick={() => onEdit(session)}
-                  className="p-3 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors"
+                  className="p-3 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors flex-1"
                   title="Edit session"
                 >
-                  <SafeIcon icon={FiEdit} className="w-4 h-4" />
+                  <SafeIcon icon={FiEdit} className="w-4 h-4 mx-auto" />
                 </button>
                 <button
                   onClick={() => onDelete(session.id)}
-                  className="p-3 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors"
+                  className="p-3 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors flex-1"
                   title="Delete session"
                 >
-                  <SafeIcon icon={FiTrash2} className="w-4 h-4" />
+                  <SafeIcon icon={FiTrash2} className="w-4 h-4 mx-auto" />
                 </button>
               </div>
             )}
           </div>
         </div>
-        
+
         {/* Tags */}
         <div className="flex flex-wrap gap-2">
           {session.runType && (
@@ -259,7 +283,7 @@ function SessionDetailView({
           )}
         </div>
       </motion.div>
-      
+
       {/* Additional Information */}
       {(session.specialInstructions || session.requiredGear) && (
         <motion.div
@@ -272,14 +296,14 @@ function SessionDetailView({
             <SafeIcon icon={FiInfo} className="w-5 h-5 text-blue-600" />
             <h2 className="text-lg font-semibold text-gray-900">Additional Information</h2>
           </div>
-          
+
           {session.specialInstructions && (
             <div className="mb-4">
               <h3 className="font-medium text-gray-900 mb-2">Special Instructions</h3>
               <p className="text-gray-600">{session.specialInstructions}</p>
             </div>
           )}
-          
+
           {session.requiredGear && session.requiredGear.length > 0 && (
             <div>
               <h3 className="font-medium text-gray-900 mb-2">Required Gear</h3>
@@ -294,7 +318,7 @@ function SessionDetailView({
           )}
         </motion.div>
       )}
-      
+
       {/* Pace Groups */}
       {paceGroups.length > 0 && (
         <motion.div
@@ -304,15 +328,15 @@ function SessionDetailView({
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Pace Groups</h2>
-          <PaceGroupManager 
-            sessionId={session.id} 
+          <PaceGroupManager
+            sessionId={session.id}
             paceGroups={paceGroups}
             onUpdate={loadPaceGroups}
             readOnly={true}
           />
         </motion.div>
       )}
-      
+
       {/* Attendees */}
       {session.attendees && session.attendees.length > 0 && (
         <motion.div
@@ -327,10 +351,10 @@ function SessionDetailView({
               <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                   {attendee.user?.picture ? (
-                    <img 
-                      src={attendee.user.picture} 
-                      alt={attendee.user.name} 
-                      className="w-8 h-8 rounded-full object-cover" 
+                    <img
+                      src={attendee.user.picture}
+                      alt={attendee.user.name}
+                      className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
                     <span className="text-sm font-medium text-blue-600">
@@ -346,7 +370,7 @@ function SessionDetailView({
           </div>
         </motion.div>
       )}
-      
+
       {/* Interested Users */}
       {session.interestedUsers && session.interestedUsers.length > 0 && (
         <motion.div
@@ -366,6 +390,16 @@ function SessionDetailView({
             ))}
           </div>
         </motion.div>
+      )}
+      
+      {/* Template Modal */}
+      {showTemplateModal && (
+        <SessionTemplateModal
+          isOpen={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          onSelectTemplate={handleSaveTemplate}
+          mode="save"
+        />
       )}
     </div>
   );

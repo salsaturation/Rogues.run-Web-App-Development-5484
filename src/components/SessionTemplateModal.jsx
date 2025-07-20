@@ -4,16 +4,17 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { templateService } from '../services/templateService';
 import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const { 
   FiX, FiSave, FiSearch, FiTag, FiUsers, FiClock, 
   FiActivity, FiStar, FiEye, FiLock, FiGlobe 
 } = FiIcons;
 
-function SessionTemplateModal({ 
-  isOpen, 
-  onClose, 
-  onSelectTemplate, 
+function SessionTemplateModal({
+  isOpen,
+  onClose,
+  onSelectTemplate,
   mode = 'select' // 'select' or 'save'
 }) {
   const { user } = useAuth();
@@ -31,9 +32,10 @@ function SessionTemplateModal({
   const [newTag, setNewTag] = useState('');
 
   const availableTags = [
-    'morning', 'evening', 'weekend', 'easy', 'tempo', 'interval', 'long-run',
-    'hills', 'track', 'trail', 'beginner-friendly', 'advanced', 'strength',
-    'endurance', 'speed', 'recovery', 'multi-distance', 'structured'
+    'morning', 'evening', 'weekend', 'easy', 'tempo', 
+    'interval', 'long-run', 'hills', 'track', 'trail',
+    'beginner-friendly', 'advanced', 'strength', 'endurance',
+    'speed', 'recovery', 'multi-distance', 'structured'
   ];
 
   useEffect(() => {
@@ -46,7 +48,7 @@ function SessionTemplateModal({
     try {
       setLoading(true);
       let data;
-
+      
       switch (activeTab) {
         case 'popular':
           data = await templateService.getPopularTemplates(10);
@@ -62,7 +64,7 @@ function SessionTemplateModal({
         default:
           data = await templateService.getTemplates(user?.id);
       }
-
+      
       setTemplates(data);
     } catch (error) {
       console.error('Failed to load templates:', error);
@@ -75,8 +77,8 @@ function SessionTemplateModal({
     try {
       setLoading(true);
       const data = await templateService.searchTemplates(
-        searchQuery, 
-        selectedTags, 
+        searchQuery,
+        selectedTags,
         user?.id
       );
       setTemplates(data);
@@ -100,12 +102,12 @@ function SessionTemplateModal({
 
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = !searchQuery || 
-      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       template.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesTags = selectedTags.length === 0 ||
+      
+    const matchesTags = selectedTags.length === 0 || 
       selectedTags.every(tag => template.tags.includes(tag));
-    
+      
     return matchesSearch && matchesTags;
   });
 
@@ -167,9 +169,9 @@ function SessionTemplateModal({
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        activeTab === tab.id
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
+                        activeTab === tab.id ? 
+                          'bg-white text-blue-600 shadow-sm' : 
+                          'text-gray-600 hover:text-gray-900'
                       }`}
                     >
                       {tab.label}
@@ -180,7 +182,10 @@ function SessionTemplateModal({
                 {/* Search */}
                 <div className="flex space-x-4">
                   <div className="flex-1 relative">
-                    <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <SafeIcon 
+                      icon={FiSearch} 
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" 
+                    />
                     <input
                       type="text"
                       placeholder="Search templates..."
@@ -212,9 +217,9 @@ function SessionTemplateModal({
                           }
                         }}
                         className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                          selectedTags.includes(tag)
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          selectedTags.includes(tag) ? 
+                            'bg-blue-100 text-blue-800' : 
+                            'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
                         {tag}
