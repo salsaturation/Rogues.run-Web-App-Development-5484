@@ -1,32 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useAuth } from '../contexts/AuthContext';
-import { useSettings } from '../contexts/SettingsContext';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {useAuth} from '../contexts/AuthContext';
+import {useSettings} from '../contexts/SettingsContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance, DISTANCE_UNITS } from '../utils/unitConversion';
-import { paceGroupService } from '../services/paceGroupService';
+import {formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance, DISTANCE_UNITS} from '../utils/unitConversion';
+import {paceGroupService} from '../services/paceGroupService';
 import PaceGroupManager from './PaceGroupManager';
 import SessionTemplateModal from './SessionTemplateModal';
 
-const { 
-  FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, 
-  FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, 
-  FiMessageSquare, FiSend, FiSave
-} = FiIcons;
+const {FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend, FiSave} = FiIcons;
 
-function SessionDetailView({
-  session,
-  onJoin,
-  onEdit,
-  onDelete,
-  canEdit,
-  userAttending,
-  userInterested,
-  onToggleInterest
-}) {
-  const { user } = useAuth();
-  const { distanceUnit } = useSettings();
+function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAttending, userInterested, onToggleInterest}) {
+  const {user} = useAuth();
+  const {distanceUnit} = useSettings();
   const [paceGroups, setPaceGroups] = useState([]);
   const [loadingPaceGroups, setLoadingPaceGroups] = useState(true);
   const [comments, setComments] = useState([]);
@@ -54,14 +41,14 @@ function SessionDetailView({
 
   // Format pace based on the selected unit
   const formatPace = (pace) => {
-    if (!pace) return 'N/A';
+    if (!pace || isNaN(pace)) return 'N/A';
     const convertedPace = convertPace(pace, DISTANCE_UNITS.KILOMETERS, distanceUnit);
     return formatPaceWithUnit(convertedPace, distanceUnit);
   };
 
   // Format distance based on the selected unit
   const formatDistance = (distance) => {
-    if (!distance) return 'N/A';
+    if (!distance || isNaN(distance)) return 'N/A';
     const convertedDistance = convertDistance(distance, DISTANCE_UNITS.KILOMETERS, distanceUnit);
     return formatDistanceWithUnit(convertedDistance, distanceUnit);
   };
@@ -94,11 +81,44 @@ function SessionDetailView({
     };
     return colors[difficulty] || 'bg-gray-100 text-gray-800';
   };
-  
+
   const handleSaveTemplate = (templateData) => {
+    console.log('Template saved:', templateData);
     setShowTemplateModal(false);
-    // In a real app, this would save the template using the templateService
-    toast.success('Session template saved successfully!');
+  };
+
+  const prepareSessionForTemplate = () => {
+    // Prepare the session data for the template modal
+    const sessionTemplate = {
+      title: session.title,
+      description: session.description,
+      time: session.time,
+      endTime: session.endTime,
+      maxAttendees: session.maxAttendees,
+      startLocationName: session.startLocationName,
+      startLocationAddress: session.startLocationAddress,
+      routeType: session.routeType,
+      totalDistance: session.totalDistance,
+      runType: session.runType,
+      paceMin: session.paceMin,
+      paceMax: session.paceMax,
+      difficulty: session.difficulty,
+      waitlistEnabled: session.waitlistEnabled,
+      specialInstructions: session.specialInstructions,
+      requiredGear: session.requiredGear || [],
+      // Include pace groups if they exist
+      paceGroups: paceGroups.map(group => ({
+        name: group.name,
+        minPace: group.minPace,
+        maxPace: group.maxPace,
+        description: group.description,
+        requiredPacers: group.requiredPacers,
+        shadowSlots: group.shadowSlots
+      }))
+    };
+
+    console.log('Prepared session template data:', sessionTemplate);
+    return sessionTemplate;
   };
 
   if (!session) {
@@ -113,8 +133,8 @@ function SessionDetailView({
     <div className="space-y-6">
       {/* Session Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{opacity: 0, y: 20}}
+        animate={{opacity: 1, y: 0}}
         className="bg-white rounded-xl p-8 shadow-sm"
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
@@ -146,7 +166,8 @@ function SessionDetailView({
                 <div>
                   <p className="text-sm text-gray-500">Time</p>
                   <p className="font-medium text-gray-900">
-                    {session.time} {session.endTime && `- ${session.endTime}`}
+                    {session.time}
+                    {session.endTime && ` - ${session.endTime}`}
                   </p>
                 </div>
               </div>
@@ -191,12 +212,14 @@ function SessionDetailView({
                   <div>
                     <p className="text-sm text-gray-500">Pace Range</p>
                     <p className="font-medium text-gray-900">
-                      {session.paceMin && session.paceMax ? 
-                        `${formatPace(session.paceMin)} - ${formatPace(session.paceMax)}` :
-                        session.paceMin ? 
-                          `From ${formatPace(session.paceMin)}` :
-                          session.paceMax ? 
-                            `Up to ${formatPace(session.paceMax)}` : 'N/A'}
+                      {session.paceMin && session.paceMax
+                        ? `${formatPace(session.paceMin)} - ${formatPace(session.paceMax)}`
+                        : session.paceMin
+                        ? `From ${formatPace(session.paceMin)}`
+                        : session.paceMax
+                        ? `Up to ${formatPace(session.paceMax)}`
+                        : 'N/A'
+                      }
                     </p>
                   </div>
                 </div>
@@ -210,11 +233,11 @@ function SessionDetailView({
               onClick={() => onJoin(session.id)}
               disabled={session.attendeeCount >= session.maxAttendees && !userAttending}
               className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                userAttending ? 
-                  'bg-red-100 text-red-700 hover:bg-red-200' :
-                  session.attendeeCount >= session.maxAttendees ? 
-                    'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                    'bg-blue-600 text-white hover:bg-blue-700'
+                userAttending
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : session.attendeeCount >= session.maxAttendees
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
               {userAttending ? 'Leave Session' : session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
@@ -223,9 +246,9 @@ function SessionDetailView({
             <button
               onClick={() => onToggleInterest(session.id)}
               className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-                userInterested ? 
-                  'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' :
-                  'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                userInterested
+                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
@@ -287,9 +310,9 @@ function SessionDetailView({
       {/* Additional Information */}
       {(session.specialInstructions || session.requiredGear) && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          transition={{delay: 0.1}}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <div className="flex items-center space-x-2 mb-4">
@@ -322,9 +345,9 @@ function SessionDetailView({
       {/* Pace Groups */}
       {paceGroups.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          transition={{delay: 0.2}}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Pace Groups</h2>
@@ -340,9 +363,9 @@ function SessionDetailView({
       {/* Attendees */}
       {session.attendees && session.attendees.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          transition={{delay: 0.3}}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendees ({session.attendees.length})</h2>
@@ -374,9 +397,9 @@ function SessionDetailView({
       {/* Interested Users */}
       {session.interestedUsers && session.interestedUsers.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          transition={{delay: 0.4}}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -391,7 +414,7 @@ function SessionDetailView({
           </div>
         </motion.div>
       )}
-      
+
       {/* Template Modal */}
       {showTemplateModal && (
         <SessionTemplateModal
@@ -399,6 +422,7 @@ function SessionDetailView({
           onClose={() => setShowTemplateModal(false)}
           onSelectTemplate={handleSaveTemplate}
           mode="save"
+          initialTemplate={prepareSessionForTemplate()}
         />
       )}
     </div>

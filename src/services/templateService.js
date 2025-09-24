@@ -1,6 +1,6 @@
-import { supabase } from '../lib/supabase';
+import {supabase} from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid';
+import {v4 as uuidv4} from 'uuid';
 
 export const templateService = {
   // Get all templates (public + user's private templates)
@@ -10,20 +10,38 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email)
+          creator:users_rogues_7a9k2m!created_by(name, email)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', {ascending: false});
 
       // If user is provided, include their private templates
       if (userId) {
-        query = query.or(`is_public.eq.true,created_by.eq.${userId}`);
+        // First check if userId is a valid UUID
+        if (this.isValidUUID(userId)) {
+          query = query.or(`is_public.eq.true,created_by.eq.${userId}`);
+        } else {
+          // If not a valid UUID, try to find the user's actual UUID
+          const {data: userData, error: userError} = await supabase
+            .from('users_rogues_7a9k2m')
+            .select('id')
+            .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+            .maybeSingle();
+
+          if (userData && !userError) {
+            query = query.or(`is_public.eq.true,created_by.eq.${userData.id}`);
+          } else {
+            // If user not found, just show public templates
+            query = query.eq('is_public', true);
+          }
+        }
       } else {
         query = query.eq('is_public', true);
       }
 
-      const { data, error } = await query;
-
+      const {data, error} = await query;
       if (error) throw error;
+
+      console.log('Templates loaded from database:', data);
 
       return data.map(template => ({
         id: template.id,
@@ -49,11 +67,11 @@ export const templateService = {
   // Get template by ID
   async getTemplateById(templateId) {
     try {
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email)
+          creator:users_rogues_7a9k2m!created_by(name, email)
         `)
         .eq('id', templateId)
         .single();
@@ -87,7 +105,7 @@ export const templateService = {
       // Ensure userId is valid
       let createdBy;
       if (!this.isValidUUID(userId)) {
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -96,7 +114,6 @@ export const templateService = {
         if (userError || !userData) {
           throw new Error('User not found');
         }
-        
         createdBy = userData.id;
       } else {
         createdBy = userId;
@@ -124,7 +141,7 @@ export const templateService = {
         paceGroups: sessionData.paceGroups || []
       };
 
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .insert([{
           name: templateName,
@@ -180,7 +197,7 @@ export const templateService = {
       // Ensure userId is valid
       let userUuid;
       if (!this.isValidUUID(userId)) {
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -190,14 +207,13 @@ export const templateService = {
           console.warn('User not found for template usage tracking');
           return;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
 
       // Insert usage record
-      const { error: usageError } = await supabase
+      const {error: usageError} = await supabase
         .from('template_usage_rogues_7a9k2m')
         .insert([{
           template_id: templateId,
@@ -210,7 +226,7 @@ export const templateService = {
       }
 
       // Update template usage count and last used date
-      const { error: updateError } = await supabase
+      const {error: updateError} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .update({
           usage_count: supabase.raw('usage_count + 1'),
@@ -230,19 +246,50 @@ export const templateService = {
   // Update template
   async updateTemplate(templateId, updates, userId) {
     try {
-      // Ensure user owns the template
+      // Ensure user owns the template or is admin
       const template = await this.getTemplateById(templateId);
-      if (template.createdBy !== userId) {
-        throw new Error('You can only update your own templates');
+
+      // Get user UUID if needed
+      let userUuid = userId;
+      if (!this.isValidUUID(userId)) {
+        const {data: userData, error: userError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id, is_admin')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+        
+        // Check if user is admin or owns the template
+        if (template.createdBy !== userUuid && !userData.is_admin) {
+          throw new Error('You can only update your own templates or must be an admin');
+        }
+      } else {
+        // Check ownership for UUID users
+        if (template.createdBy !== userUuid) {
+          // Check if user is admin
+          const {data: userData} = await supabase
+            .from('users_rogues_7a9k2m')
+            .select('is_admin')
+            .eq('id', userUuid)
+            .single();
+          
+          if (!userData?.is_admin) {
+            throw new Error('You can only update your own templates');
+          }
+        }
       }
 
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .update({
           name: updates.name,
           description: updates.description,
           is_public: updates.isPublic,
-          template_data: updates.templateData,
+          template_data: updates.templateData || template.templateData,
           tags: updates.tags,
           updated_at: new Date().toISOString()
         })
@@ -264,13 +311,44 @@ export const templateService = {
   // Delete template
   async deleteTemplate(templateId, userId) {
     try {
-      // Ensure user owns the template
+      // Ensure user owns the template or is admin
       const template = await this.getTemplateById(templateId);
-      if (template.createdBy !== userId) {
-        throw new Error('You can only delete your own templates');
+
+      // Get user UUID if needed
+      let userUuid = userId;
+      if (!this.isValidUUID(userId)) {
+        const {data: userData, error: userError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id, is_admin')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+        
+        // Check if user is admin or owns the template
+        if (template.createdBy !== userUuid && !userData.is_admin) {
+          throw new Error('You can only delete your own templates or must be an admin');
+        }
+      } else {
+        // Check ownership for UUID users
+        if (template.createdBy !== userUuid) {
+          // Check if user is admin
+          const {data: userData} = await supabase
+            .from('users_rogues_7a9k2m')
+            .select('is_admin')
+            .eq('id', userUuid)
+            .single();
+          
+          if (!userData?.is_admin) {
+            throw new Error('You can only delete your own templates');
+          }
+        }
       }
 
-      const { error } = await supabase
+      const {error} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .delete()
         .eq('id', templateId);
@@ -288,14 +366,14 @@ export const templateService = {
   // Get popular templates
   async getPopularTemplates(limit = 5) {
     try {
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email)
+          creator:users_rogues_7a9k2m!created_by(name, email)
         `)
         .eq('is_public', true)
-        .order('usage_count', { ascending: false })
+        .order('usage_count', {ascending: false})
         .limit(limit);
 
       if (error) throw error;
@@ -321,12 +399,29 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email)
+          creator:users_rogues_7a9k2m!created_by(name, email)
         `);
 
       // Include public templates and user's private templates
       if (userId) {
-        dbQuery = dbQuery.or(`is_public.eq.true,created_by.eq.${userId}`);
+        // Check if userId is a valid UUID
+        if (this.isValidUUID(userId)) {
+          dbQuery = dbQuery.or(`is_public.eq.true,created_by.eq.${userId}`);
+        } else {
+          // If not a valid UUID, try to find the user's actual UUID
+          const {data: userData, error: userError} = await supabase
+            .from('users_rogues_7a9k2m')
+            .select('id')
+            .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+            .maybeSingle();
+
+          if (userData && !userError) {
+            dbQuery = dbQuery.or(`is_public.eq.true,created_by.eq.${userData.id}`);
+          } else {
+            // If user not found, just show public templates
+            dbQuery = dbQuery.eq('is_public', true);
+          }
+        }
       } else {
         dbQuery = dbQuery.eq('is_public', true);
       }
@@ -341,8 +436,7 @@ export const templateService = {
         dbQuery = dbQuery.overlaps('tags', tags);
       }
 
-      const { data, error } = await dbQuery.order('usage_count', { ascending: false });
-
+      const {data, error} = await dbQuery.order('usage_count', {ascending: false});
       if (error) throw error;
 
       return data.map(template => ({

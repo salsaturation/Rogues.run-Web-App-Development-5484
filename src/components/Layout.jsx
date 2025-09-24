@@ -1,35 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { useAuth } from '../contexts/AuthContext';
+import React, {useState, useEffect} from 'react';
+import {Outlet, Link, useLocation} from 'react-router-dom';
+import {motion} from 'framer-motion';
+import {useAuth} from '../contexts/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { analyticsService } from '../services/analyticsService';
+import {analyticsService} from '../services/analyticsService';
 
-const {
-  FiHome, FiCalendar, FiUsers, FiSettings, FiLogOut, FiMenu, FiX,
-  FiActivity, FiShield, FiBell, FiUser, FiTarget, FiBarChart2,
-  FiList
-} = FiIcons;
+const {FiHome, FiCalendar, FiUsers, FiSettings, FiLogOut, FiMenu, FiX, FiActivity, FiShield, FiBell, FiUser, FiTarget, FiBarChart2, FiList, FiSave} = FiIcons;
 
 function Layout() {
-  const { user, logout } = useAuth();
+  const {user, logout} = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: FiHome },
-    { name: 'Sessions', href: '/sessions', icon: FiActivity },
-    { name: 'Calendar', href: '/calendar', icon: FiCalendar },
-    { name: 'Members', href: '/members', icon: FiUsers },
-    { name: 'Goals', href: '/goals', icon: FiTarget },
-    { name: 'Profile', href: '/profile', icon: FiUser },
+    {name: 'Dashboard', href: '/dashboard', icon: FiHome},
+    {name: 'Sessions', href: '/sessions', icon: FiActivity},
+    {name: 'Calendar', href: '/calendar', icon: FiCalendar},
+    {name: 'Members', href: '/members', icon: FiUsers},
+    {name: 'Goals', href: '/goals', icon: FiTarget},
+    {name: 'Profile', href: '/profile', icon: FiUser},
   ];
 
+  // Add Templates section for publishers and admins
+  if (user?.canPublish || user?.isAdmin) {
+    navigation.splice(5, 0, {name: 'Templates', href: '/templates', icon: FiSave});
+  }
+
   if (user?.isAdmin) {
-    navigation.push({ name: 'Admin Panel', href: '/admin', icon: FiShield });
-    navigation.push({ name: 'Pace Groups', href: '/admin/pace-groups', icon: FiList });
-    navigation.push({ name: 'Analytics', href: '/analytics', icon: FiBarChart2 });
+    navigation.push({name: 'Admin Panel', href: '/admin', icon: FiShield});
+    navigation.push({name: 'Pace Groups', href: '/admin/pace-groups', icon: FiList});
+    navigation.push({name: 'Analytics', href: '/analytics', icon: FiBarChart2});
   }
 
   useEffect(() => {
@@ -46,20 +47,18 @@ function Layout() {
     <div className="flex h-screen bg-gray-100">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+        <div 
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden" 
+          onClick={() => setSidebarOpen(false)} 
         />
       )}
 
       {/* Sidebar */}
-      <div
-        className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:translate-x-0
-          transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
-      >
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg lg:static lg:translate-x-0 
+        transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -148,6 +147,7 @@ function Layout() {
                 {navigation.find((item) => isActive(item.href))?.name || 'Dashboard'}
               </h1>
             </div>
+
             <div className="flex items-center space-x-4">
               <button
                 className="p-2 rounded-lg hover:bg-gray-100 relative"

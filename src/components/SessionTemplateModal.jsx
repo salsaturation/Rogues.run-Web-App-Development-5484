@@ -1,23 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, {useState, useEffect} from 'react';
+import {motion, AnimatePresence} from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { templateService } from '../services/templateService';
-import { useAuth } from '../contexts/AuthContext';
+import {templateService} from '../services/templateService';
+import {useAuth} from '../contexts/AuthContext';
+import {useSettings} from '../contexts/SettingsContext';
+import {convertPace, convertDistance, DISTANCE_UNITS} from '../utils/unitConversion';
 import toast from 'react-hot-toast';
 
-const { 
-  FiX, FiSave, FiSearch, FiTag, FiUsers, FiClock, 
-  FiActivity, FiStar, FiEye, FiLock, FiGlobe 
-} = FiIcons;
+const {FiX, FiSave, FiSearch, FiTag, FiUsers, FiClock, FiActivity, FiStar, FiEye, FiLock, FiGlobe, FiEdit, FiTrash2} = FiIcons;
 
-function SessionTemplateModal({
-  isOpen,
-  onClose,
-  onSelectTemplate,
-  mode = 'select' // 'select' or 'save'
-}) {
-  const { user } = useAuth();
+function SessionTemplateModal({isOpen, onClose, onSelectTemplate, mode = 'select', initialTemplate = null}) {
+  const {user} = useAuth();
+  const {distanceUnit} = useSettings();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,18 +26,62 @@ function SessionTemplateModal({
   const [templateTags, setTemplateTags] = useState([]);
   const [newTag, setNewTag] = useState('');
 
+  // For edit mode - we'll edit the template metadata, not the session data
+  const [editingTemplate, setEditingTemplate] = useState(null);
+
   const availableTags = [
-    'morning', 'evening', 'weekend', 'easy', 'tempo', 
-    'interval', 'long-run', 'hills', 'track', 'trail',
-    'beginner-friendly', 'advanced', 'strength', 'endurance',
-    'speed', 'recovery', 'multi-distance', 'structured'
+    'morning', 'evening', 'weekend', 'easy', 'tempo', 'interval', 'long-run',
+    'hills', 'track', 'trail', 'beginner-friendly', 'advanced', 'strength',
+    'endurance', 'speed', 'recovery', 'multi-distance', 'structured'
   ];
 
   useEffect(() => {
     if (isOpen && mode === 'select') {
       loadTemplates();
     }
-  }, [isOpen, mode, activeTab]);
+
+    // Handle save mode initialization
+    if (mode === 'save' && initialTemplate && isOpen) {
+      console.log('Initializing save mode with template data:', initialTemplate);
+      
+      // Set template name from session title if available
+      if (initialTemplate.title) {
+        setTemplateName(`${initialTemplate.title} Template`);
+      }
+
+      // Set description
+      setTemplateDescription(initialTemplate.description || `Template based on ${initialTemplate.title || 'session'}`);
+
+      // Auto-suggest tags based on session data
+      const suggestedTags = [];
+      if (initialTemplate.runType) {
+        suggestedTags.push(initialTemplate.runType);
+      }
+      if (initialTemplate.difficulty) {
+        suggestedTags.push(initialTemplate.difficulty);
+      }
+      if (initialTemplate.time) {
+        const hour = parseInt(initialTemplate.time.split(':')[0]);
+        if (hour < 12) {
+          suggestedTags.push('morning');
+        } else if (hour >= 18) {
+          suggestedTags.push('evening');
+        }
+      }
+
+      setTemplateTags(suggestedTags.filter(tag => availableTags.includes(tag)));
+    }
+
+    // Handle edit mode initialization
+    if (mode === 'edit' && initialTemplate && isOpen) {
+      console.log('Initializing edit mode with template:', initialTemplate);
+      setEditingTemplate(initialTemplate);
+      setTemplateName(initialTemplate.name);
+      setTemplateDescription(initialTemplate.description || '');
+      setIsPublic(initialTemplate.isPublic || false);
+      setTemplateTags(initialTemplate.tags || []);
+    }
+  }, [isOpen, mode, activeTab, initialTemplate]);
 
   const loadTemplates = async () => {
     try {
@@ -100,14 +139,148 @@ function SessionTemplateModal({
     setTemplateTags(templateTags.filter(tag => tag !== tagToRemove));
   };
 
+  const resetEditForm = () => {
+    setTemplateName('');
+    setTemplateDescription('');
+    setIsPublic(false);
+    setTemplateTags([]);
+    setNewTag('');
+    setEditingTemplate(null);
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (!editingTemplate || !templateName.trim()) {
+      toast.error('Please enter a template name');
+      return;
+    }
+
+    try {
+      await templateService.updateTemplate(editingTemplate.id, {
+        name: templateName,
+        description: templateDescription,
+        isPublic: isPublic,
+        tags: templateTags,
+        templateData: editingTemplate.templateData // Keep existing template data
+      }, user.id);
+
+      resetEditForm();
+      onSelectTemplate({
+        ...editingTemplate,
+        name: templateName,
+        description: templateDescription,
+        isPublic: isPublic,
+        tags: templateTags
+      });
+      
+      toast.success('Template updated successfully!');
+    } catch (error) {
+      console.error('Failed to update template:', error);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      toast.error('Please enter a template name');
+      return;
+    }
+
+    if (!initialTemplate) {
+      toast.error('No session data available to save as template');
+      return;
+    }
+
+    try {
+      console.log('Saving template with data:', {
+        templateName,
+        templateDescription,
+        isPublic,
+        templateTags,
+        sessionData: initialTemplate
+      });
+
+      // Use the templateService to save the session as template
+      await templateService.saveSessionAsTemplate(
+        initialTemplate,
+        templateName,
+        templateDescription,
+        isPublic,
+        user?.id || user?.email,
+        templateTags
+      );
+
+      // Call the callback with template info (for UI feedback)
+      onSelectTemplate({
+        name: templateName,
+        description: templateDescription,
+        isPublic: isPublic,
+        tags: templateTags
+      });
+
+      // Reset form
+      resetEditForm();
+      onClose();
+    } catch (error) {
+      console.error('Failed to save template:', error);
+      toast.error('Failed to save template');
+    }
+  };
+
+  const handleSelectTemplate = (template) => {
+    console.log('Selected template:', template);
+    
+    // Convert template data with pace groups
+    const templateData = {...template.templateData};
+    
+    // Process pace groups if they exist
+    if (templateData.paceGroups && templateData.paceGroups.length > 0) {
+      console.log('Processing template pace groups:', templateData.paceGroups);
+      
+      // Convert pace values from storage (km) to display unit if needed
+      templateData.paceGroups = templateData.paceGroups.map(group => {
+        let minPaceDisplay = group.minPace;
+        let maxPaceDisplay = group.maxPace;
+        
+        if (distanceUnit === DISTANCE_UNITS.MILES) {
+          minPaceDisplay = convertPace(group.minPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+          maxPaceDisplay = convertPace(group.maxPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+        }
+        
+        return {
+          ...group,
+          minPace: minPaceDisplay,
+          maxPace: maxPaceDisplay,
+          id: Date.now() + Math.random() // Ensure unique IDs
+        };
+      });
+    }
+
+    // Convert main pace values if needed
+    if (templateData.paceMin && distanceUnit === DISTANCE_UNITS.MILES) {
+      templateData.paceMin = convertPace(templateData.paceMin, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+    }
+    if (templateData.paceMax && distanceUnit === DISTANCE_UNITS.MILES) {
+      templateData.paceMax = convertPace(templateData.paceMax, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+    }
+    if (templateData.totalDistance && distanceUnit === DISTANCE_UNITS.MILES) {
+      templateData.totalDistance = convertDistance(templateData.totalDistance, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
+    }
+
+    console.log('Final template data with converted values:', templateData);
+    
+    onSelectTemplate({
+      ...template,
+      templateData: templateData
+    });
+  };
+
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = !searchQuery || 
-      template.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       template.description?.toLowerCase().includes(searchQuery.toLowerCase());
-      
+    
     const matchesTags = selectedTags.length === 0 || 
       selectedTags.every(tag => template.tags.includes(tag));
-      
+    
     return matchesSearch && matchesTags;
   });
 
@@ -134,15 +307,17 @@ function SessionTemplateModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+        initial={{opacity: 0, scale: 0.95}}
+        animate={{opacity: 1, scale: 1}}
+        exit={{opacity: 0, scale: 0.95}}
         className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">
-            {mode === 'save' ? 'Save Session as Template' : 'Choose Template'}
+            {mode === 'save' ? 'Save Session as Template' : 
+             mode === 'edit' ? 'Edit Template' :
+             'Choose Template'}
           </h2>
           <button
             onClick={onClose}
@@ -160,18 +335,18 @@ function SessionTemplateModal({
                 {/* Tabs */}
                 <div className="flex space-x-1 bg-gray-100 rounded-lg p-1 mb-4">
                   {[
-                    { id: 'all', label: 'All Templates' },
-                    { id: 'popular', label: 'Popular' },
-                    { id: 'public', label: 'Public' },
-                    { id: 'mine', label: 'My Templates' }
+                    {id: 'all', label: 'All Templates'},
+                    {id: 'popular', label: 'Popular'},
+                    {id: 'public', label: 'Public'},
+                    {id: 'mine', label: 'My Templates'}
                   ].map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        activeTab === tab.id ? 
-                          'bg-white text-blue-600 shadow-sm' : 
-                          'text-gray-600 hover:text-gray-900'
+                        activeTab === tab.id
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
                       {tab.label}
@@ -182,10 +357,7 @@ function SessionTemplateModal({
                 {/* Search */}
                 <div className="flex space-x-4">
                   <div className="flex-1 relative">
-                    <SafeIcon 
-                      icon={FiSearch} 
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" 
-                    />
+                    <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search templates..."
@@ -217,9 +389,9 @@ function SessionTemplateModal({
                           }
                         }}
                         className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                          selectedTags.includes(tag) ? 
-                            'bg-blue-100 text-blue-800' : 
-                            'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          selectedTags.includes(tag)
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
                         {tag}
@@ -240,19 +412,18 @@ function SessionTemplateModal({
                     {filteredTemplates.map((template) => (
                       <motion.div
                         key={template.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{opacity: 0, y: 10}}
+                        animate={{opacity: 1, y: 0}}
                         className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => onSelectTemplate(template)}
                       >
                         <div className="flex items-start justify-between mb-3">
-                          <div>
+                          <div className="flex-1" onClick={() => handleSelectTemplate(template)}>
                             <h3 className="font-semibold text-gray-900">{template.name}</h3>
                             <p className="text-sm text-gray-600 mt-1">
                               {template.description || 'No description'}
                             </p>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 ml-2">
                             {template.isPublic ? (
                               <SafeIcon icon={FiGlobe} className="w-4 h-4 text-green-600" title="Public template" />
                             ) : (
@@ -267,7 +438,7 @@ function SessionTemplateModal({
 
                         {/* Template Details */}
                         {template.templateData && (
-                          <div className="space-y-2 mb-3">
+                          <div className="space-y-2 mb-3" onClick={() => handleSelectTemplate(template)}>
                             <div className="flex items-center space-x-4 text-xs text-gray-600">
                               <div className="flex items-center space-x-1">
                                 <SafeIcon icon={FiClock} className="w-3 h-3" />
@@ -306,7 +477,7 @@ function SessionTemplateModal({
 
                         {/* Tags */}
                         {template.tags && template.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1 mb-3" onClick={() => handleSelectTemplate(template)}>
                             {template.tags.map((tag) => (
                               <span
                                 key={tag}
@@ -319,7 +490,7 @@ function SessionTemplateModal({
                         )}
 
                         {/* Creator */}
-                        <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="mt-3 pt-3 border-t border-gray-100" onClick={() => handleSelectTemplate(template)}>
                           <p className="text-xs text-gray-500">
                             Created by {template.creator?.name || 'Unknown'}
                           </p>
@@ -337,8 +508,36 @@ function SessionTemplateModal({
               </div>
             </>
           ) : (
-            /* Save Mode */
+            /* Save/Edit Mode */
             <div className="p-6">
+              {/* Show session preview for save mode */}
+              {mode === 'save' && initialTemplate && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="font-medium text-blue-800 mb-2">Session to Save as Template</h3>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p><strong>Title:</strong> {initialTemplate.title}</p>
+                    <p><strong>Type:</strong> {initialTemplate.runType || 'Not specified'}</p>
+                    <p><strong>Distance:</strong> {initialTemplate.totalDistance || 'Not specified'} {distanceUnit}</p>
+                    {initialTemplate.paceGroups && initialTemplate.paceGroups.length > 0 && (
+                      <p><strong>Pace Groups:</strong> {initialTemplate.paceGroups.length} groups</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Show template info for edit mode */}
+              {mode === 'edit' && editingTemplate && (
+                <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <h3 className="font-medium text-purple-800 mb-2">Editing Template</h3>
+                  <div className="text-sm text-purple-700 space-y-1">
+                    <p><strong>Current Name:</strong> {editingTemplate.name}</p>
+                    <p><strong>Created:</strong> {new Date(editingTemplate.createdAt).toLocaleDateString()}</p>
+                    <p><strong>Usage Count:</strong> {editingTemplate.usageCount || 0} times</p>
+                    <p><strong>Status:</strong> {editingTemplate.isPublic ? 'Public' : 'Private'}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -453,31 +652,24 @@ function SessionTemplateModal({
         </div>
 
         {/* Footer */}
-        {mode === 'save' && (
+        {(mode === 'save' || mode === 'edit') && (
           <div className="flex justify-end space-x-4 p-6 border-t border-gray-200">
             <button
-              onClick={onClose}
+              onClick={() => {
+                resetEditForm();
+                onClose();
+              }}
               className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={() => {
-                if (templateName.trim()) {
-                  const templateData = {
-                    name: templateName,
-                    description: templateDescription,
-                    isPublic: isPublic,
-                    tags: templateTags
-                  };
-                  onSelectTemplate(templateData);
-                }
-              }}
+              onClick={mode === 'edit' ? handleUpdateTemplate : handleSaveTemplate}
               disabled={!templateName.trim()}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <SafeIcon icon={FiSave} className="w-4 h-4" />
-              <span>Save Template</span>
+              <span>{mode === 'edit' ? 'Update Template' : 'Save Template'}</span>
             </button>
           </div>
         )}

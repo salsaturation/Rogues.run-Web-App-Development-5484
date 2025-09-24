@@ -1,9 +1,9 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './contexts/AuthContext';
-import { SettingsProvider } from './contexts/SettingsContext';
-import { useAuth } from './contexts/AuthContext';
+import {HashRouter as Router, Routes, Route, Navigate} from 'react-router-dom';
+import {Toaster} from 'react-hot-toast';
+import {AuthProvider} from './contexts/AuthContext';
+import {SettingsProvider} from './contexts/SettingsContext';
+import {useAuth} from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -12,14 +12,15 @@ import Calendar from './pages/Calendar';
 import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Goals from './pages/Goals';
+import Templates from './pages/Templates';
 import AdminPanel from './pages/AdminPanel';
 import StandardPaceGroups from './pages/StandardPaceGroups';
 import Analytics from './pages/Analytics';
 import NotificationManager from './components/NotificationManager';
 import './App.css';
 
-function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
+function ProtectedRoute({children}) {
+  const {user, loading} = useAuth();
 
   if (loading) {
     return (
@@ -32,8 +33,8 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" />;
 }
 
-function PublicRoute({ children }) {
-  const { user, loading } = useAuth();
+function PublicRoute({children}) {
+  const {user, loading} = useAuth();
 
   if (loading) {
     return (
@@ -77,6 +78,7 @@ function App() {
                 <Route path="calendar" element={<Calendar />} />
                 <Route path="members" element={<Members />} />
                 <Route path="goals" element={<Goals />} />
+                <Route path="templates" element={<Templates />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="admin" element={<AdminPanel />} />
                 <Route path="admin/pace-groups" element={<StandardPaceGroups />} />

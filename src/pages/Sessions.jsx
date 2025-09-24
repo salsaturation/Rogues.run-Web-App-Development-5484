@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useAuth } from '../contexts/AuthContext';
-import { sessionService } from '../services/sessionService';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {useAuth} from '../contexts/AuthContext';
+import {sessionService} from '../services/sessionService';
+import {templateService} from '../services/templateService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import SessionForm from '../components/SessionForm';
@@ -9,30 +10,36 @@ import SessionDetailView from '../components/SessionDetailView';
 import SessionTemplateModal from '../components/SessionTemplateModal';
 import toast from 'react-hot-toast';
 
-const {
-  FiPlus, FiMapPin, FiClock, FiUsers, FiCalendar, FiFilter, FiSearch,
-  FiChevronLeft, FiChevronRight, FiList, FiGrid, FiActivity, FiArrowUp, 
-  FiArrowDown, FiThumbsUp, FiX, FiSave
-} = FiIcons;
+const {FiPlus, FiMapPin, FiClock, FiUsers, FiCalendar, FiFilter, FiSearch, FiChevronLeft, FiChevronRight, FiList, FiGrid, FiActivity, FiArrowUp, FiArrowDown, FiThumbsUp, FiX, FiSave} = FiIcons;
 
 function Sessions() {
-  const { user } = useAuth();
+  const {user} = useAuth();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [viewingSession, setViewingSession] = useState(null);
+  const [templateData, setTemplateData] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date');
   const [sortDirection, setSortDirection] = useState('asc');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [userInterests, setUserInterests] = useState({});
 
   useEffect(() => {
     loadSessions();
+    
+    // Check for template parameter in URL
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    const templateId = urlParams.get('template');
+    const templateName = urlParams.get('name');
+    
+    if (templateId && templateName) {
+      handleLoadTemplateFromUrl(templateId, templateName);
+    }
   }, []);
 
   const loadSessions = async () => {
@@ -41,7 +48,6 @@ function Sessions() {
       const data = await sessionService.getSessions();
       setSessions(data);
       
-      // Load user interests
       if (user && user.id) {
         const interests = {};
         for (const session of data) {
@@ -56,15 +62,37 @@ function Sessions() {
     }
   };
 
+  const handleLoadTemplateFromUrl = async (templateId, templateName) => {
+    try {
+      const template = await templateService.getTemplateById(templateId);
+      if (template) {
+        // Track template usage
+        await templateService.trackTemplateUsage(templateId, user?.id);
+        
+        const prefillData = {
+          ...template.templateData,
+          date: new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0],
+        };
+        
+        setTemplateData(prefillData);
+        setShowCreateModal(true);
+        toast.success(`Template "${templateName}" loaded successfully!`);
+        
+        // Clear URL parameters
+        window.history.replaceState({}, '', '#/sessions');
+      }
+    } catch (error) {
+      console.error('Failed to load template:', error);
+      toast.error('Failed to load template');
+    }
+  };
+
   const filteredSessions = sessions.filter(session => {
-    const matchesSearch = 
-      (session.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = (session.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (session.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (session.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    
     const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
     const matchesType = filterType === 'all' || session.runType === filterType;
-    
     return matchesSearch && matchesStatus && matchesType;
   });
 
@@ -93,6 +121,7 @@ function Sessions() {
     try {
       await sessionService.createSession(sessionData, user?.id);
       setShowCreateModal(false);
+      setTemplateData(null);
       loadSessions();
     } catch (error) {
       console.error('Failed to create session:', error);
@@ -119,10 +148,8 @@ function Sessions() {
         toast.error('You must be logged in to join sessions');
         return;
       }
-      
       await sessionService.joinSession(sessionId, user.id);
       loadSessions();
-      
       if (viewingSession && viewingSession.id === sessionId) {
         const updatedSession = await sessionService.getSessionById(sessionId);
         setViewingSession(updatedSession);
@@ -138,10 +165,8 @@ function Sessions() {
         toast.error('You must be logged in to mark interest');
         return;
       }
-      
       const isInterested = await sessionService.toggleInterest(sessionId, user.id);
-      setUserInterests(prev => ({ ...prev, [sessionId]: isInterested }));
-      
+      setUserInterests(prev => ({...prev, [sessionId]: isInterested}));
       if (viewingSession && viewingSession.id === sessionId) {
         const updatedSession = await sessionService.getSessionById(sessionId);
         setViewingSession(updatedSession);
@@ -156,7 +181,6 @@ function Sessions() {
       toast.error('You don\'t have permission to delete this session');
       return;
     }
-    
     if (window.confirm('Are you sure you want to delete this session?')) {
       try {
         await sessionService.deleteSession(sessionId);
@@ -185,13 +209,18 @@ function Sessions() {
 
   const handleCreateFromTemplate = (template) => {
     setShowTemplateModal(false);
-    // Create a new session from the template
-    const newSessionData = {
+    const prefillData = {
       ...template.templateData,
-      date: new Date().toISOString().split('T')[0],
+      date: new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0],
     };
+    setTemplateData(prefillData);
     setShowCreateModal(true);
-    // TODO: Fill the session form with template data
+    toast.success(`Template "${template.name}" loaded! Form has been prefilled with template data.`);
+  };
+
+  const handleCreateNewSession = () => {
+    setTemplateData(null);
+    setShowCreateModal(true);
   };
 
   const canEditSession = (session) => {
@@ -202,8 +231,7 @@ function Sessions() {
   const isUserAttending = (session) => {
     if (!user || !session.attendees) return false;
     return session.attendees.some(attendee => 
-      attendee.user_id === user.id || 
-      (attendee.user && attendee.user.email === user.email)
+      attendee.user_id === user.id || (attendee.user && attendee.user.email === user.email)
     );
   };
 
@@ -258,7 +286,6 @@ function Sessions() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Session Details</h1>
         </div>
-
         <SessionDetailView
           session={viewingSession}
           onJoin={handleJoinSession}
@@ -287,7 +314,6 @@ function Sessions() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Edit Session</h1>
         </div>
-
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <SessionForm
             initialData={editingSession}
@@ -309,23 +335,22 @@ function Sessions() {
         </div>
         <div className="flex items-center space-x-2">
           {(user?.canPublish || user?.isAdmin) && (
-            <button
-              onClick={() => setShowTemplateModal(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
-            >
-              <SafeIcon icon={FiSave} className="w-5 h-5" />
-              <span className="hidden md:inline">Use Template</span>
-            </button>
-          )}
-          
-          {(user?.canPublish || user?.isAdmin) && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
-            >
-              <SafeIcon icon={FiPlus} className="w-5 h-5" />
-              <span className="hidden md:inline">Create Session</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowTemplateModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
+              >
+                <SafeIcon icon={FiSave} className="w-5 h-5" />
+                <span className="hidden md:inline">Use Template</span>
+              </button>
+              <button
+                onClick={handleCreateNewSession}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
+              >
+                <SafeIcon icon={FiPlus} className="w-5 h-5" />
+                <span className="hidden md:inline">Create Session</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -343,7 +368,6 @@ function Sessions() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-
           <div className="flex flex-wrap gap-2">
             <select
               value={filterStatus}
@@ -355,7 +379,6 @@ function Sessions() {
               <option value="pending">Pending</option>
               <option value="cancelled">Cancelled</option>
             </select>
-
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
@@ -368,7 +391,6 @@ function Sessions() {
               <option value="long-slow">Long Slow</option>
               <option value="trail">Trail</option>
             </select>
-
             <div className="flex">
               <select
                 value={sortBy}
@@ -387,7 +409,6 @@ function Sessions() {
                 <SafeIcon icon={sortDirection === 'asc' ? FiArrowUp : FiArrowDown} className="w-5 h-5" />
               </button>
             </div>
-
             <div className="flex rounded-lg overflow-hidden border border-gray-300">
               <button
                 onClick={() => setViewMode('grid')}
@@ -412,9 +433,9 @@ function Sessions() {
           {sortedSessions.map((session, index) => (
             <motion.div
               key={session.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+              initial={{opacity: 0, y: 20}}
+              animate={{opacity: 1, y: 0}}
+              transition={{delay: index * 0.05}}
               className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
             >
               <div className="flex items-start justify-between mb-4">
@@ -472,16 +493,15 @@ function Sessions() {
                   onClick={() => handleJoinSession(session.id)}
                   disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    isUserAttending(session) ?
-                      'bg-red-100 text-red-700 hover:bg-red-200' :
-                      session.attendeeCount >= session.maxAttendees ?
-                        'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                        'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    isUserAttending(session)
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                      : session.attendeeCount >= session.maxAttendees
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                   }`}
                 >
                   {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
                 </button>
-
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleViewSession(session.id)}
@@ -493,9 +513,9 @@ function Sessions() {
                   <button
                     onClick={() => handleToggleInterest(session.id)}
                     className={`p-2 rounded-lg transition-colors ${
-                      userInterests[session.id] ?
-                        'text-blue-600 bg-blue-50 hover:bg-blue-100' :
-                        'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      userInterests[session.id]
+                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                        : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                     }`}
                     title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
                   >
@@ -511,9 +531,9 @@ function Sessions() {
           {sortedSessions.map((session, index) => (
             <motion.div
               key={session.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+              initial={{opacity: 0, y: 10}}
+              animate={{opacity: 1, y: 0}}
+              transition={{delay: index * 0.05}}
               className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
             >
               <div className="flex items-center justify-between">
@@ -523,7 +543,7 @@ function Sessions() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <h3
+                      <h3 
                         className="text-lg font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
                         onClick={() => handleViewSession(session.id)}
                       >
@@ -563,11 +583,11 @@ function Sessions() {
                     onClick={() => handleJoinSession(session.id)}
                     disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isUserAttending(session) ?
-                        'bg-red-100 text-red-700 hover:bg-red-200' :
-                        session.attendeeCount >= session.maxAttendees ?
-                          'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                          'bg-blue-600 text-white hover:bg-blue-700'
+                      isUserAttending(session)
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : session.attendeeCount >= session.maxAttendees
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
@@ -575,9 +595,9 @@ function Sessions() {
                   <button
                     onClick={() => handleToggleInterest(session.id)}
                     className={`p-2 rounded-full transition-colors ${
-                      userInterests[session.id] ?
-                        'text-blue-600 bg-blue-50 hover:bg-blue-100' :
-                        'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      userInterests[session.id]
+                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                        : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
                     }`}
                     title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
                   >
@@ -604,7 +624,7 @@ function Sessions() {
           <p className="text-gray-500">Try adjusting your search or filters</p>
           {(user?.canPublish || user?.isAdmin) && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={handleCreateNewSession}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Create Your First Session
@@ -618,19 +638,35 @@ function Sessions() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Create New Session</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                {templateData ? 'Create Session from Template' : 'Create New Session'}
+              </h2>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setTemplateData(null);
+                }}
                 className="p-2 hover:bg-gray-100 rounded-full"
               >
                 <SafeIcon icon={FiX} className="w-5 h-5" />
               </button>
             </div>
-            <SessionForm onSubmit={handleCreateSession} isEdit={false} />
+            {templateData && (
+              <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <p className="text-sm text-purple-700">
+                  <strong>Template loaded:</strong> The form has been prefilled with template data. You can modify any fields as needed before creating the session.
+                </p>
+              </div>
+            )}
+            <SessionForm
+              initialData={templateData}
+              onSubmit={handleCreateSession}
+              isEdit={false}
+            />
           </div>
         </div>
       )}
-      
+
       {/* Template Selection Modal */}
       {showTemplateModal && (
         <SessionTemplateModal
