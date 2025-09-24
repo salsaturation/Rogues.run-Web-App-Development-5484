@@ -10,8 +10,7 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email),
-          usage_count
+          creator:users_rogues_7a9k2m!created_by(name,email)
         `)
         .order('created_at', { ascending: false });
 
@@ -54,7 +53,7 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email)
+          creator:users_rogues_7a9k2m!created_by(name,email)
         `)
         .eq('id', templateId)
         .single();
@@ -97,6 +96,7 @@ export const templateService = {
         if (userError || !userData) {
           throw new Error('User not found');
         }
+        
         createdBy = userData.id;
       } else {
         createdBy = userId;
@@ -153,7 +153,7 @@ export const templateService = {
     try {
       // Get template data
       const template = await this.getTemplateById(templateId);
-      
+
       // Merge template data with overrides
       const sessionData = {
         ...template.templateData,
@@ -190,6 +190,7 @@ export const templateService = {
           console.warn('User not found for template usage tracking');
           return;
         }
+        
         userUuid = userData.id;
       } else {
         userUuid = userId;
@@ -291,7 +292,7 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email)
+          creator:users_rogues_7a9k2m!created_by(name,email)
         `)
         .eq('is_public', true)
         .order('usage_count', { ascending: false })
@@ -320,7 +321,7 @@ export const templateService = {
         .from('session_templates_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name, email)
+          creator:users_rogues_7a9k2m!created_by(name,email)
         `);
 
       // Include public templates and user's private templates
