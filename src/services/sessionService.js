@@ -1,27 +1,28 @@
-import { supabase } from '../lib/supabase';
+import {supabase} from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid';
-import { paceGroupService } from './paceGroupService';
+import {v4 as uuidv4} from 'uuid';
+import {paceGroupService} from './paceGroupService';
 
 export const sessionService = {
   // Get all sessions with attendee count
   async getSessions() {
     try {
-      const { data: sessions, error } = await supabase
+      const {data: sessions, error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email),
+          creator:users_rogues_7a9k2m!created_by(name, email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            status,
+            user:users_rogues_7a9k2m!session_attendees_rogues_7a9k2m_user_id_fkey(name, email, picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m!session_interested_users_rogues_7a9k2m_user_id_fkey(name, email, picture)
           )
         `)
-        .order('session_date', { ascending: true });
+        .order('session_date', {ascending: true});
 
       if (error) throw error;
 
@@ -41,6 +42,8 @@ export const sessionService = {
         attendeeCount: session.attendees?.length || 0,
         interestedUsers: session.interested || [],
         createdAt: session.created_at,
+        completedAt: session.completed_at,
+        completionNotes: session.completion_notes,
         // Enhanced fields
         startLocationName: session.start_location_name,
         startLocationLat: session.start_location_lat,
@@ -67,18 +70,23 @@ export const sessionService = {
   // Get session by ID
   async getSessionById(sessionId) {
     try {
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .select(`
           *,
-          creator:users_rogues_7a9k2m!created_by(name,email),
+          creator:users_rogues_7a9k2m!created_by(name, email),
           attendees:session_attendees_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            status,
+            attended,
+            admin_processed,
+            self_reported,
+            self_reported_attended,
+            user:users_rogues_7a9k2m!session_attendees_rogues_7a9k2m_user_id_fkey(name, email, picture)
           ),
           interested:session_interested_users_rogues_7a9k2m(
             user_id,
-            user:users_rogues_7a9k2m(name,email,picture)
+            user:users_rogues_7a9k2m!session_interested_users_rogues_7a9k2m_user_id_fkey(name, email, picture)
           )
         `)
         .eq('id', sessionId)
@@ -103,6 +111,8 @@ export const sessionService = {
         attendeeCount: data.attendees?.length || 0,
         interestedUsers: data.interested || [],
         createdAt: data.created_at,
+        completedAt: data.completed_at,
+        completionNotes: data.completion_notes,
         // Enhanced fields
         startLocationName: data.start_location_name,
         startLocationLat: data.start_location_lat,
@@ -126,6 +136,327 @@ export const sessionService = {
     }
   },
 
+  // Mark session as completed
+  async markSessionComplete(sessionId, completionData) {
+    try {
+      const {error} = await supabase
+        .from('sessions_rogues_7a9k2m')
+        .update({
+          status: 'completed',
+          completed_at: completionData.completedAt,
+          completion_notes: completionData.notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Failed to mark session as completed:', error);
+      throw error;
+    }
+  },
+
+  // Get session attendance data - FIXED VERSION
+  async getSessionAttendance(sessionId) {
+    try {
+      // Use the custom function we created
+      const {data, error} = await supabase
+        .rpc('get_session_attendance_data', {session_uuid: sessionId});
+
+      if (error) {
+        console.error('RPC function error, falling back to direct query:', error);
+        
+        // Fallback to direct query
+        const {data: fallbackData, error: fallbackError} = await supabase
+          .from('session_attendees_rogues_7a9k2m')
+          .select(`
+            user_id,
+            status,
+            joined_at,
+            attended,
+            admin_processed,
+            self_reported,
+            self_reported_attended,
+            self_reported_at,
+            confirmed_at,
+            user:users_rogues_7a9k2m!session_attendees_rogues_7a9k2m_user_id_fkey(
+              id,
+              name,
+              email,
+              picture
+            ),
+            confirmed_by_user:users_rogues_7a9k2m!session_attendees_rogues_7a9k2m_confirmed_by_fkey(
+              name,
+              email
+            )
+          `)
+          .eq('session_id', sessionId);
+
+        if (fallbackError) throw fallbackError;
+
+        const attendees = (fallbackData || []).map(attendee => ({
+          userId: attendee.user_id,
+          user: attendee.user,
+          status: attendee.status || 'registered',
+          joinedAt: attendee.joined_at,
+          attended: attendee.attended,
+          adminProcessed: attendee.admin_processed || false,
+          selfReported: attendee.self_reported || false,
+          selfReportedAttended: attendee.self_reported_attended,
+          selfReportedAt: attendee.self_reported_at,
+          confirmedBy: attendee.confirmed_by_user,
+          confirmedAt: attendee.confirmed_at
+        }));
+
+        return {attendees};
+      }
+
+      // Process RPC function results
+      const attendees = (data || []).map(row => ({
+        userId: row.user_id,
+        user: {
+          id: row.user_id,
+          name: row.user_name,
+          email: row.user_email,
+          picture: row.user_picture
+        },
+        status: row.status || 'registered',
+        joinedAt: row.joined_at,
+        attended: row.attended,
+        adminProcessed: row.admin_processed || false,
+        selfReported: row.self_reported || false,
+        selfReportedAttended: row.self_reported_attended,
+        selfReportedAt: row.self_reported_at,
+        confirmedBy: row.confirmed_by_name ? {name: row.confirmed_by_name} : null,
+        confirmedAt: row.confirmed_at
+      }));
+
+      return {attendees};
+    } catch (error) {
+      console.error('Failed to fetch session attendance:', error);
+      // Return empty structure to prevent crashes
+      return {attendees: []};
+    }
+  },
+
+  // Self-report attendance - ENHANCED VERSION
+  async selfReportAttendance(sessionId, userId, attended) {
+    try {
+      // Make sure userId is a valid UUID
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const {data: userData, error: userError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      // Check if user is already in attendees table
+      const {data: existingAttendee, error: checkError} = await supabase
+        .from('session_attendees_rogues_7a9k2m')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('user_id', userUuid)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
+
+      if (existingAttendee) {
+        // Update existing attendee record
+        const {error} = await supabase
+          .from('session_attendees_rogues_7a9k2m')
+          .update({
+            self_reported: true,
+            self_reported_attended: attended,
+            self_reported_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('session_id', sessionId)
+          .eq('user_id', userUuid);
+
+        if (error) throw error;
+      } else {
+        // Create new attendee record for interested user
+        const {error} = await supabase
+          .from('session_attendees_rogues_7a9k2m')
+          .insert({
+            session_id: sessionId,
+            user_id: userUuid,
+            status: 'interested', // Special status for self-reporting interested users
+            joined_at: new Date().toISOString(),
+            self_reported: true,
+            self_reported_attended: attended,
+            self_reported_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to self-report attendance:', error);
+      throw error;
+    }
+  },
+
+  // Confirm attendance (admin/publisher action)
+  async confirmAttendance(sessionId, userId, attended, confirmedBy) {
+    try {
+      // Make sure userIds are valid UUIDs
+      let userUuid, confirmedByUuid;
+      
+      if (!this.isValidUUID(userId)) {
+        const {data: userData, error: userError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      if (!this.isValidUUID(confirmedBy)) {
+        const {data: confirmerData, error: confirmerError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', confirmedBy.includes('@') ? confirmedBy : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (confirmerError || !confirmerData) {
+          throw new Error('Confirmer not found');
+        }
+        confirmedByUuid = confirmerData.id;
+      } else {
+        confirmedByUuid = confirmedBy;
+      }
+
+      const {error} = await supabase
+        .from('session_attendees_rogues_7a9k2m')
+        .update({
+          attended: attended,
+          admin_processed: true,
+          confirmed_by: confirmedByUuid,
+          confirmed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('session_id', sessionId)
+        .eq('user_id', userUuid);
+
+      if (error) throw error;
+
+      // Update user's session count if they attended
+      if (attended) {
+        try {
+          await supabase.rpc('increment_sessions_attended', {user_id: userUuid});
+        } catch (rpcError) {
+          console.error('Failed to update session count:', rpcError);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to confirm attendance:', error);
+      throw error;
+    }
+  },
+
+  // Bulk confirm attendance
+  async bulkConfirmAttendance(sessionId, userIds, attended, confirmedBy) {
+    try {
+      // Make sure confirmedBy is a valid UUID
+      let confirmedByUuid;
+      if (!this.isValidUUID(confirmedBy)) {
+        const {data: confirmerData, error: confirmerError} = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', confirmedBy.includes('@') ? confirmedBy : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (confirmerError || !confirmerData) {
+          throw new Error('Confirmer not found');
+        }
+        confirmedByUuid = confirmerData.id;
+      } else {
+        confirmedByUuid = confirmedBy;
+      }
+
+      // Process each user individually to handle UUID conversion
+      const results = [];
+      for (const userId of userIds) {
+        try {
+          let userUuid;
+          if (!this.isValidUUID(userId)) {
+            const {data: userData, error: userError} = await supabase
+              .from('users_rogues_7a9k2m')
+              .select('id')
+              .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+              .maybeSingle();
+
+            if (userError || !userData) {
+              console.error(`User not found: ${userId}`);
+              continue;
+            }
+            userUuid = userData.id;
+          } else {
+            userUuid = userId;
+          }
+
+          const {error} = await supabase
+            .from('session_attendees_rogues_7a9k2m')
+            .update({
+              attended: attended,
+              admin_processed: true,
+              confirmed_by: confirmedByUuid,
+              confirmed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('session_id', sessionId)
+            .eq('user_id', userUuid);
+
+          if (error) {
+            console.error(`Failed to update attendance for user ${userId}:`, error);
+            continue;
+          }
+
+          // Update user's session count if they attended
+          if (attended) {
+            try {
+              await supabase.rpc('increment_sessions_attended', {user_id: userUuid});
+            } catch (rpcError) {
+              console.error('Failed to update session count:', rpcError);
+            }
+          }
+
+          results.push({userId, success: true});
+        } catch (userError) {
+          console.error(`Error processing user ${userId}:`, userError);
+          results.push({userId, success: false, error: userError.message});
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Failed to bulk confirm attendance:', error);
+      throw error;
+    }
+  },
+
   // Create a new session
   async createSession(sessionData, userId) {
     try {
@@ -133,7 +464,7 @@ export const sessionService = {
       let createdBy;
       if (!this.isValidUUID(userId)) {
         // Generate a UUID for non-UUID user IDs
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', sessionData.creatorEmail || 'admin@rogues.run')
@@ -141,7 +472,7 @@ export const sessionService = {
 
         if (userError || !userData) {
           // If user not found, use a default admin user
-          const { data: adminUser } = await supabase
+          const {data: adminUser} = await supabase
             .from('users_rogues_7a9k2m')
             .select('id')
             .eq('is_admin', true)
@@ -202,7 +533,7 @@ export const sessionService = {
         required_gear: requiredGear
       };
 
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .insert([sessionInsertData])
         .select()
@@ -246,7 +577,7 @@ export const sessionService = {
       let userUuid;
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -257,14 +588,13 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
 
       // Check if already joined
-      const { data: existing, error: checkError } = await supabase
+      const {data: existing, error: checkError} = await supabase
         .from('session_attendees_rogues_7a9k2m')
         .select('id')
         .eq('session_id', sessionId)
@@ -276,7 +606,7 @@ export const sessionService = {
 
       if (existing && existing.length > 0) {
         // Leave session
-        const { error } = await supabase
+        const {error} = await supabase
           .from('session_attendees_rogues_7a9k2m')
           .delete()
           .eq('session_id', sessionId)
@@ -287,20 +617,15 @@ export const sessionService = {
         return false; // Not joined
       } else {
         // Join session
-        const { error } = await supabase
+        const {error} = await supabase
           .from('session_attendees_rogues_7a9k2m')
-          .insert([{ session_id: sessionId, user_id: userUuid }]);
+          .insert([{
+            session_id: sessionId,
+            user_id: userUuid,
+            status: 'registered'
+          }]);
 
         if (error) throw error;
-
-        // Update user's session count
-        try {
-          await supabase.rpc('increment_sessions_attended', { user_id: userUuid });
-        } catch (rpcError) {
-          console.error('Failed to update session count:', rpcError);
-          // Continue even if this fails
-        }
-
         toast.success('Joined session successfully');
         return true; // Joined
       }
@@ -318,7 +643,7 @@ export const sessionService = {
       let userUuid;
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -328,14 +653,13 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
 
       // Check if already interested
-      const { data: existing, error: checkError } = await supabase
+      const {data: existing, error: checkError} = await supabase
         .from('session_interested_users_rogues_7a9k2m')
         .select('id')
         .eq('session_id', sessionId)
@@ -347,7 +671,7 @@ export const sessionService = {
 
       if (existing && existing.length > 0) {
         // Remove interest
-        const { error } = await supabase
+        const {error} = await supabase
           .from('session_interested_users_rogues_7a9k2m')
           .delete()
           .eq('session_id', sessionId)
@@ -358,9 +682,12 @@ export const sessionService = {
         return false; // Not interested
       } else {
         // Add interest
-        const { error } = await supabase
+        const {error} = await supabase
           .from('session_interested_users_rogues_7a9k2m')
-          .insert([{ session_id: sessionId, user_id: userUuid }]);
+          .insert([{
+            session_id: sessionId,
+            user_id: userUuid
+          }]);
 
         if (error) throw error;
         toast.success('Added to interested list');
@@ -380,7 +707,7 @@ export const sessionService = {
       let userUuid;
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -392,7 +719,7 @@ export const sessionService = {
         userUuid = userId;
       }
 
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_interested_users_rogues_7a9k2m')
         .select('id')
         .eq('session_id', sessionId)
@@ -402,7 +729,7 @@ export const sessionService = {
         console.error('Error checking interest:', error);
         return false;
       }
-      
+
       return data && data.length > 0;
     } catch (error) {
       console.error('Error checking interest:', error);
@@ -433,7 +760,7 @@ export const sessionService = {
       // Extract pace groups from updates
       const paceGroups = updates.paceGroups || [];
 
-      const { error } = await supabase
+      const {error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .update({
           title: updates.title,
@@ -507,7 +834,7 @@ export const sessionService = {
   // Delete session
   async deleteSession(sessionId) {
     try {
-      const { error } = await supabase
+      const {error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .delete()
         .eq('id', sessionId);
@@ -524,7 +851,7 @@ export const sessionService = {
   // Get user's sessions
   async getUserSessions(userId) {
     try {
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_attendees_rogues_7a9k2m')
         .select(`
           session:sessions_rogues_7a9k2m(
@@ -553,7 +880,7 @@ export const sessionService = {
     try {
       // Direct approach - get all sessions and filter manually
       // First get user's pace preferences
-      const { data: userData, error: userError } = await supabase
+      const {data: userData, error: userError} = await supabase
         .from('users_rogues_7a9k2m')
         .select('pace_preferences')
         .eq('id', userId)
@@ -568,11 +895,11 @@ export const sessionService = {
       console.log("User pace preferences:", pacePreferences);
 
       // Get upcoming sessions
-      const { data: sessions, error } = await supabase
+      const {data: sessions, error} = await supabase
         .from('sessions_rogues_7a9k2m')
         .select('*')
         .gte('session_date', new Date().toISOString().split('T')[0])
-        .order('session_date', { ascending: true });
+        .order('session_date', {ascending: true});
 
       if (error) {
         console.error("Error fetching sessions:", error);
@@ -591,6 +918,7 @@ export const sessionService = {
           // Match by pace range and optionally run type
           const matchesPace = prefPace >= session.pace_min && prefPace <= session.pace_max;
           const matchesType = !session.run_type || !pref.runType || session.run_type === pref.runType;
+          
           return matchesPace && matchesType;
         });
       });
@@ -615,14 +943,14 @@ export const sessionService = {
   // Get session comments
   async getSessionComments(sessionId) {
     try {
-      const { data, error } = await supabase
+      const {data, error} = await supabase
         .from('session_comments_rogues_7a9k2m')
         .select(`
           *,
-          user:users_rogues_7a9k2m!user_id(name,email,picture)
+          user:users_rogues_7a9k2m!user_id(name, email, picture)
         `)
         .eq('session_id', sessionId)
-        .order('created_at', { ascending: false });
+        .order('created_at', {ascending: false});
 
       if (error) throw error;
       return data;
@@ -639,7 +967,7 @@ export const sessionService = {
       let userUuid;
       if (!this.isValidUUID(userId)) {
         // Get the actual UUID for this user from the database
-        const { data: userData, error: userError } = await supabase
+        const {data: userData, error: userError} = await supabase
           .from('users_rogues_7a9k2m')
           .select('id')
           .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
@@ -649,13 +977,12 @@ export const sessionService = {
           toast.error('User not found in database');
           return false;
         }
-        
         userUuid = userData.id;
       } else {
         userUuid = userId;
       }
 
-      const { error } = await supabase
+      const {error} = await supabase
         .from('session_comments_rogues_7a9k2m')
         .insert([{
           session_id: sessionId,

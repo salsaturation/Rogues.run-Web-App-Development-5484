@@ -8,8 +8,10 @@ import {formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance
 import {paceGroupService} from '../services/paceGroupService';
 import PaceGroupManager from './PaceGroupManager';
 import SessionTemplateModal from './SessionTemplateModal';
+import SessionAttendanceManager from './SessionAttendanceManager';
+import SessionCompletionModal from './SessionCompletionModal';
 
-const {FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend, FiSave} = FiIcons;
+const {FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend, FiSave, FiCheckCircle, FiUserCheck} = FiIcons;
 
 function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAttending, userInterested, onToggleInterest}) {
   const {user} = useAuth();
@@ -19,6 +21,8 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showAttendanceManager, setShowAttendanceManager] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   useEffect(() => {
     if (session?.id) {
@@ -58,6 +62,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -85,6 +90,11 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
   const handleSaveTemplate = (templateData) => {
     console.log('Template saved:', templateData);
     setShowTemplateModal(false);
+  };
+
+  const handleSessionCompleted = () => {
+    // Refresh the session data
+    window.location.reload(); // Simple refresh for now
   };
 
   const prepareSessionForTemplate = () => {
@@ -121,6 +131,17 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
     return sessionTemplate;
   };
 
+  // Check if session is past or completed
+  const isSessionPast = () => {
+    const sessionDateTime = new Date(`${session.date}T${session.time}`);
+    return sessionDateTime < new Date() || session.status === 'completed';
+  };
+
+  const isSessionCompleted = session.status === 'completed';
+  const isPastOrCompleted = isSessionPast();
+  const canManageAttendance = canEdit && (isSessionCompleted || isPastOrCompleted);
+  const canCompleteSession = canEdit && isPastOrCompleted && session.status !== 'completed';
+
   if (!session) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -142,9 +163,17 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
             <div className="flex flex-col md:flex-row md:items-center md:space-x-3 mb-4">
               <h1 className="text-3xl font-bold text-gray-900 mb-2 md:mb-0">{session.title}</h1>
               <span className={`px-3 py-1 rounded-full text-sm font-medium self-start md:self-auto ${getStatusColor(session.status || 'confirmed')}`}>
-                {session.status || 'confirmed'}
+                {session.status === 'completed' ? (
+                  <div className="flex items-center space-x-1">
+                    <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                    <span>Completed</span>
+                  </div>
+                ) : (
+                  session.status || 'confirmed'
+                )}
               </span>
             </div>
+
             <p className="text-lg text-gray-600 mb-6">{session.description}</p>
 
             {/* Session Details Grid */}
@@ -166,8 +195,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
                 <div>
                   <p className="text-sm text-gray-500">Time</p>
                   <p className="font-medium text-gray-900">
-                    {session.time}
-                    {session.endTime && ` - ${session.endTime}`}
+                    {session.time} {session.endTime && ` - ${session.endTime}`}
                   </p>
                 </div>
               </div>
@@ -218,8 +246,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
                         ? `From ${formatPace(session.paceMin)}`
                         : session.paceMax
                         ? `Up to ${formatPace(session.paceMax)}`
-                        : 'N/A'
-                      }
+                        : 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -229,31 +256,61 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
 
           {/* Action Buttons - Stacked on mobile, side by side on desktop */}
           <div className="flex flex-col space-y-3 md:w-auto md:ml-4">
-            <button
-              onClick={() => onJoin(session.id)}
-              disabled={session.attendeeCount >= session.maxAttendees && !userAttending}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                userAttending
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+            {!isPastOrCompleted && (
+              <button
+                onClick={() => onJoin(session.id)}
+                disabled={session.attendeeCount >= session.maxAttendees && !userAttending}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  userAttending
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : session.attendeeCount >= session.maxAttendees
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {userAttending
+                  ? 'Leave Session'
                   : session.attendeeCount >= session.maxAttendees
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {userAttending ? 'Leave Session' : session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
-            </button>
+                  ? 'Session Full'
+                  : 'Join Session'}
+              </button>
+            )}
 
-            <button
-              onClick={() => onToggleInterest(session.id)}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-                userInterested
-                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
-              <span>{userInterested ? 'Interested' : 'Mark Interest'}</span>
-            </button>
+            {!isPastOrCompleted && (
+              <button
+                onClick={() => onToggleInterest(session.id)}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                  userInterested
+                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
+                <span>{userInterested ? 'Interested' : 'Mark Interest'}</span>
+              </button>
+            )}
+
+            {/* Attendance Management - Always show for completed sessions if user has permission */}
+            {canManageAttendance && (
+              <button
+                onClick={() => setShowAttendanceManager(!showAttendanceManager)}
+                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-green-100 text-green-700 hover:bg-green-200"
+              >
+                <SafeIcon icon={FiUserCheck} className="w-4 h-4" />
+                <span>Manage Attendance</span>
+              </button>
+            )}
+
+            {/* Complete Session */}
+            {canCompleteSession && (
+              <button
+                onClick={() => setShowCompletionModal(true)}
+                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-blue-100 text-blue-700 hover:bg-blue-200"
+              >
+                <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                <span>Mark Complete</span>
+              </button>
+            )}
 
             {/* Save as Template button */}
             {(user?.canPublish || user?.isAdmin) && (
@@ -305,7 +362,47 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
             </span>
           )}
         </div>
+
+        {/* Completion Info */}
+        {isSessionCompleted && session.completedAt && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Session completed</strong> on {new Date(session.completedAt).toLocaleDateString()}
+            </p>
+            {session.completionNotes && (
+              <p className="text-sm text-blue-700 mt-1">{session.completionNotes}</p>
+            )}
+          </div>
+        )}
+
+        {/* Past session notice */}
+        {isPastOrCompleted && !isSessionCompleted && (
+          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-sm text-gray-700">
+              <strong>This session has ended.</strong> Registration and interest are no longer available.
+            </p>
+          </div>
+        )}
       </motion.div>
+
+      {/* Attendance Management - Always show for completed sessions, regardless of showAttendanceManager toggle */}
+      {(showAttendanceManager || isSessionCompleted) && (
+        <motion.div
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          className="bg-white rounded-xl p-6 shadow-sm"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance Management</h2>
+          <SessionAttendanceManager
+            session={session}
+            onUpdate={() => {
+              // Refresh session data
+              window.location.reload();
+            }}
+            canManage={canEdit}
+          />
+        </motion.div>
+      )}
 
       {/* Additional Information */}
       {(session.specialInstructions || session.requiredGear) && (
@@ -360,8 +457,8 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
         </motion.div>
       )}
 
-      {/* Attendees */}
-      {session.attendees && session.attendees.length > 0 && (
+      {/* Attendees - Only show if not showing attendance manager */}
+      {session.attendees && session.attendees.length > 0 && !showAttendanceManager && !isSessionCompleted && (
         <motion.div
           initial={{opacity: 0, y: 20}}
           animate={{opacity: 1, y: 0}}
@@ -394,8 +491,8 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
         </motion.div>
       )}
 
-      {/* Interested Users */}
-      {session.interestedUsers && session.interestedUsers.length > 0 && (
+      {/* Interested Users - Only show if not completed */}
+      {!isSessionCompleted && session.interestedUsers && session.interestedUsers.length > 0 && (
         <motion.div
           initial={{opacity: 0, y: 20}}
           animate={{opacity: 1, y: 0}}
@@ -415,7 +512,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
         </motion.div>
       )}
 
-      {/* Template Modal */}
+      {/* Modals */}
       {showTemplateModal && (
         <SessionTemplateModal
           isOpen={showTemplateModal}
@@ -423,6 +520,15 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
           onSelectTemplate={handleSaveTemplate}
           mode="save"
           initialTemplate={prepareSessionForTemplate()}
+        />
+      )}
+
+      {showCompletionModal && (
+        <SessionCompletionModal
+          session={session}
+          isOpen={showCompletionModal}
+          onClose={() => setShowCompletionModal(false)}
+          onComplete={handleSessionCompleted}
         />
       )}
     </div>

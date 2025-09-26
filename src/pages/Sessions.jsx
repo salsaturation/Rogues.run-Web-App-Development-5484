@@ -10,7 +10,7 @@ import SessionDetailView from '../components/SessionDetailView';
 import SessionTemplateModal from '../components/SessionTemplateModal';
 import toast from 'react-hot-toast';
 
-const {FiPlus, FiMapPin, FiClock, FiUsers, FiCalendar, FiFilter, FiSearch, FiChevronLeft, FiChevronRight, FiList, FiGrid, FiActivity, FiArrowUp, FiArrowDown, FiThumbsUp, FiX, FiSave} = FiIcons;
+const {FiPlus, FiMapPin, FiClock, FiUsers, FiCalendar, FiFilter, FiSearch, FiChevronLeft, FiChevronRight, FiList, FiGrid, FiActivity, FiArrowUp, FiArrowDown, FiThumbsUp, FiX, FiSave, FiCheckCircle} = FiIcons;
 
 function Sessions() {
   const {user} = useAuth();
@@ -89,15 +89,18 @@ function Sessions() {
 
   const filteredSessions = sessions.filter(session => {
     const matchesSearch = (session.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (session.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (session.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+                         (session.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (session.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    
     const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
     const matchesType = filterType === 'all' || session.runType === filterType;
+    
     return matchesSearch && matchesStatus && matchesType;
   });
 
   const sortedSessions = [...filteredSessions].sort((a, b) => {
     let comparison = 0;
+    
     switch (sortBy) {
       case 'date':
         comparison = new Date(a.date) - new Date(b.date);
@@ -114,6 +117,7 @@ function Sessions() {
       default:
         comparison = new Date(a.date) - new Date(b.date);
     }
+    
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
@@ -133,6 +137,7 @@ function Sessions() {
       await sessionService.updateSession(editingSession.id, sessionData);
       setEditingSession(null);
       loadSessions();
+      
       if (viewingSession && viewingSession.id === editingSession.id) {
         const updatedSession = await sessionService.getSessionById(editingSession.id);
         setViewingSession(updatedSession);
@@ -148,8 +153,22 @@ function Sessions() {
         toast.error('You must be logged in to join sessions');
         return;
       }
+
+      // Check if session is past or completed
+      const session = sessions.find(s => s.id === sessionId);
+      if (session) {
+        const sessionDateTime = new Date(`${session.date}T${session.time}`);
+        const isPastOrCompleted = sessionDateTime < new Date() || session.status === 'completed';
+        
+        if (isPastOrCompleted) {
+          toast.error('Cannot join a completed or past session');
+          return;
+        }
+      }
+
       await sessionService.joinSession(sessionId, user.id);
       loadSessions();
+      
       if (viewingSession && viewingSession.id === sessionId) {
         const updatedSession = await sessionService.getSessionById(sessionId);
         setViewingSession(updatedSession);
@@ -165,8 +184,25 @@ function Sessions() {
         toast.error('You must be logged in to mark interest');
         return;
       }
+
+      // Check if session is past or completed
+      const session = sessions.find(s => s.id === sessionId);
+      if (session) {
+        const sessionDateTime = new Date(`${session.date}T${session.time}`);
+        const isPastOrCompleted = sessionDateTime < new Date() || session.status === 'completed';
+        
+        if (isPastOrCompleted) {
+          toast.error('Cannot mark interest in a completed or past session');
+          return;
+        }
+      }
+
       const isInterested = await sessionService.toggleInterest(sessionId, user.id);
-      setUserInterests(prev => ({...prev, [sessionId]: isInterested}));
+      setUserInterests(prev => ({
+        ...prev,
+        [sessionId]: isInterested
+      }));
+      
       if (viewingSession && viewingSession.id === sessionId) {
         const updatedSession = await sessionService.getSessionById(sessionId);
         setViewingSession(updatedSession);
@@ -181,12 +217,15 @@ function Sessions() {
       toast.error('You don\'t have permission to delete this session');
       return;
     }
+    
     if (window.confirm('Are you sure you want to delete this session?')) {
       try {
         await sessionService.deleteSession(sessionId);
+        
         if (viewingSession && viewingSession.id === sessionId) {
           setViewingSession(null);
         }
+        
         loadSessions();
       } catch (error) {
         console.error('Failed to delete session:', error);
@@ -235,6 +274,12 @@ function Sessions() {
     );
   };
 
+  // Check if session is past or completed
+  const isSessionPastOrCompleted = (session) => {
+    const sessionDateTime = new Date(`${session.date}T${session.time}`);
+    return sessionDateTime < new Date() || session.status === 'completed';
+  };
+
   const getRunTypeColor = (type) => {
     const colors = {
       'easy': 'bg-green-100 text-green-800',
@@ -260,6 +305,7 @@ function Sessions() {
       'confirmed': 'bg-green-100 text-green-800',
       'pending': 'bg-yellow-100 text-yellow-800',
       'cancelled': 'bg-red-100 text-red-800',
+      'completed': 'bg-blue-100 text-blue-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -286,6 +332,7 @@ function Sessions() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Session Details</h1>
         </div>
+        
         <SessionDetailView
           session={viewingSession}
           onJoin={handleJoinSession}
@@ -314,6 +361,7 @@ function Sessions() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Edit Session</h1>
         </div>
+        
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <SessionForm
             initialData={editingSession}
@@ -378,7 +426,9 @@ function Sessions() {
               <option value="confirmed">Confirmed</option>
               <option value="pending">Pending</option>
               <option value="cancelled">Cancelled</option>
+              <option value="completed">Completed</option>
             </select>
+            
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
@@ -391,6 +441,7 @@ function Sessions() {
               <option value="long-slow">Long Slow</option>
               <option value="trail">Trail</option>
             </select>
+            
             <div className="flex">
               <select
                 value={sortBy}
@@ -409,6 +460,7 @@ function Sessions() {
                 <SafeIcon icon={sortDirection === 'asc' ? FiArrowUp : FiArrowDown} className="w-5 h-5" />
               </button>
             </div>
+            
             <div className="flex rounded-lg overflow-hidden border border-gray-300">
               <button
                 onClick={() => setViewMode('grid')}
@@ -448,12 +500,20 @@ function Sessions() {
                       {session.title}
                     </h3>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status || 'confirmed')}`}>
-                      {session.status || 'confirmed'}
+                      {session.status === 'completed' ? (
+                        <div className="flex items-center space-x-1">
+                          <SafeIcon icon={FiCheckCircle} className="w-3 h-3" />
+                          <span>Completed</span>
+                        </div>
+                      ) : (
+                        session.status || 'confirmed'
+                      )}
                     </span>
                   </div>
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">
                     {session.description || 'No description provided'}
                   </p>
+                  
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                       <SafeIcon icon={FiCalendar} className="w-4 h-4" />
@@ -489,19 +549,27 @@ function Sessions() {
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => handleJoinSession(session.id)}
-                  disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    isUserAttending(session)
-                      ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                      : session.attendeeCount >= session.maxAttendees
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
-                >
-                  {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
-                </button>
+                {!isSessionPastOrCompleted(session) ? (
+                  <button
+                    onClick={() => handleJoinSession(session.id)}
+                    disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isUserAttending(session)
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : session.attendeeCount >= session.maxAttendees
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                    <span>{session.status === 'completed' ? 'Completed' : 'Ended'}</span>
+                  </div>
+                )}
+
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleViewSession(session.id)}
@@ -510,17 +578,19 @@ function Sessions() {
                   >
                     <SafeIcon icon={FiChevronRight} className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => handleToggleInterest(session.id)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      userInterests[session.id]
-                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                        : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                    }`}
-                    title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
-                  >
-                    <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
-                  </button>
+                  {!isSessionPastOrCompleted(session) && (
+                    <button
+                      onClick={() => handleToggleInterest(session.id)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        userInterests[session.id]
+                          ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                      title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
+                    >
+                      <SafeIcon icon={FiThumbsUp} className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -550,7 +620,14 @@ function Sessions() {
                         {session.title}
                       </h3>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status || 'confirmed')}`}>
-                        {session.status || 'confirmed'}
+                        {session.status === 'completed' ? (
+                          <div className="flex items-center space-x-1">
+                            <SafeIcon icon={FiCheckCircle} className="w-3 h-3" />
+                            <span>Completed</span>
+                          </div>
+                        ) : (
+                          session.status || 'confirmed'
+                        )}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
@@ -573,36 +650,49 @@ function Sessions() {
                     </div>
                   </div>
                 </div>
+                
                 <div className="flex items-center space-x-3">
                   {session.runType && (
                     <span className={`hidden md:inline-block px-2 py-1 rounded-full text-xs font-medium ${getRunTypeColor(session.runType)}`}>
                       {session.runType}
                     </span>
                   )}
-                  <button
-                    onClick={() => handleJoinSession(session.id)}
-                    disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isUserAttending(session)
-                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                        : session.attendeeCount >= session.maxAttendees
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
-                  </button>
-                  <button
-                    onClick={() => handleToggleInterest(session.id)}
-                    className={`p-2 rounded-full transition-colors ${
-                      userInterests[session.id]
-                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                        : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                    }`}
-                    title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
-                  >
-                    <SafeIcon icon={FiThumbsUp} className="w-5 h-5" />
-                  </button>
+                  
+                  {!isSessionPastOrCompleted(session) ? (
+                    <button
+                      onClick={() => handleJoinSession(session.id)}
+                      disabled={session.attendeeCount >= session.maxAttendees && !isUserAttending(session)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        isUserAttending(session)
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : session.attendeeCount >= session.maxAttendees
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {isUserAttending(session) ? 'Leave' : session.attendeeCount >= session.maxAttendees ? 'Full' : 'Join'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                      <span>{session.status === 'completed' ? 'Completed' : 'Ended'}</span>
+                    </div>
+                  )}
+                  
+                  {!isSessionPastOrCompleted(session) && (
+                    <button
+                      onClick={() => handleToggleInterest(session.id)}
+                      className={`p-2 rounded-full transition-colors ${
+                        userInterests[session.id]
+                          ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                      title={userInterests[session.id] ? 'Remove interest' : 'Mark as interested'}
+                    >
+                      <SafeIcon icon={FiThumbsUp} className="w-5 h-5" />
+                    </button>
+                  )}
+                  
                   <button
                     onClick={() => handleViewSession(session.id)}
                     className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
@@ -651,6 +741,7 @@ function Sessions() {
                 <SafeIcon icon={FiX} className="w-5 h-5" />
               </button>
             </div>
+            
             {templateData && (
               <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                 <p className="text-sm text-purple-700">
@@ -658,6 +749,7 @@ function Sessions() {
                 </p>
               </div>
             )}
+            
             <SessionForm
               initialData={templateData}
               onSubmit={handleCreateSession}
