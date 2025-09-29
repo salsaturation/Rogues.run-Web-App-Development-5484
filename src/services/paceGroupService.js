@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { convertPace, DISTANCE_UNITS } from '../utils/unitConversion';
+import { sessionService } from './sessionService';
 
 export const paceGroupService = {
   // Get all standard pace groups
@@ -36,37 +37,32 @@ export const paceGroupService = {
     }
   },
 
-  // Get suggested pace groups for a session - fallback method that doesn't rely on the Supabase function
+  // Get suggested pace groups for a session
   async getSuggestedPaceGroups(sessionMinPace, sessionMaxPace, distanceUnit) {
     try {
-      // Get all standard pace groups first
       const allGroups = await this.getStandardPaceGroups();
 
-      // If the paces are in miles, convert to km for comparison
       let minPaceKm = sessionMinPace;
       let maxPaceKm = sessionMaxPace;
-      
+
       if (distanceUnit === DISTANCE_UNITS.MILES) {
         minPaceKm = convertPace(sessionMinPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
         maxPaceKm = convertPace(sessionMaxPace, DISTANCE_UNITS.MILES, DISTANCE_UNITS.KILOMETERS);
       }
 
-      // Filter groups manually
       const suggestedGroups = allGroups.filter(group => {
-        // Check if there's any overlap between session pace and group pace
         return (group.minPace <= maxPaceKm && group.maxPace >= minPaceKm);
       });
 
-      // Convert the pace values back to the user's preferred unit
       return suggestedGroups.map(group => {
         let minPaceDisplay = group.minPace;
         let maxPaceDisplay = group.maxPace;
-        
+
         if (distanceUnit === DISTANCE_UNITS.MILES) {
           minPaceDisplay = convertPace(group.minPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
           maxPaceDisplay = convertPace(group.maxPace, DISTANCE_UNITS.KILOMETERS, DISTANCE_UNITS.MILES);
         }
-        
+
         return {
           id: group.id,
           name: group.name,
@@ -75,7 +71,7 @@ export const paceGroupService = {
           description: group.description,
           color: group.color,
           icon: group.icon,
-          requiredPacers: 1, // Default values for session pace groups
+          requiredPacers: 1,
           shadowSlots: 1
         };
       });
@@ -88,7 +84,6 @@ export const paceGroupService = {
   // Create standard pace group
   async createStandardPaceGroup(groupData, userId) {
     try {
-      // Ensure userId is valid
       let createdBy;
       if (!this.isValidUUID(userId)) {
         const { data: userData, error: userError } = await supabase
@@ -100,20 +95,17 @@ export const paceGroupService = {
         if (userError || !userData) {
           throw new Error('User not found');
         }
-        
         createdBy = userData.id;
       } else {
         createdBy = userId;
       }
 
-      // Handle numeric fields - convert empty strings to null
       const cleanNumericField = (value) => {
         if (value === '' || value === undefined || value === null) return null;
         const parsed = parseFloat(value);
         return isNaN(parsed) ? null : parsed;
       };
 
-      // Make sure the pace values are in kilometers for storage
       const minPace = cleanNumericField(groupData.minPace);
       const maxPace = cleanNumericField(groupData.maxPace);
 
@@ -134,6 +126,7 @@ export const paceGroupService = {
         .single();
 
       if (error) throw error;
+
       toast.success('Standard pace group created successfully');
       return data;
     } catch (error) {
@@ -146,14 +139,12 @@ export const paceGroupService = {
   // Update standard pace group
   async updateStandardPaceGroup(groupId, groupData) {
     try {
-      // Handle numeric fields - convert empty strings to null
       const cleanNumericField = (value) => {
         if (value === '' || value === undefined || value === null) return null;
         const parsed = parseFloat(value);
         return isNaN(parsed) ? null : parsed;
       };
 
-      // Make sure the pace values are in kilometers for storage
       const minPace = cleanNumericField(groupData.minPace);
       const maxPace = cleanNumericField(groupData.maxPace);
 
@@ -173,6 +164,7 @@ export const paceGroupService = {
         .eq('id', groupId);
 
       if (error) throw error;
+
       toast.success('Standard pace group updated successfully');
       return true;
     } catch (error) {
@@ -191,6 +183,7 @@ export const paceGroupService = {
         .eq('id', groupId);
 
       if (error) throw error;
+
       toast.success('Pace group deleted successfully');
     } catch (error) {
       console.error('Failed to delete pace group:', error);
@@ -210,7 +203,7 @@ export const paceGroupService = {
             user_id,
             role,
             status,
-            user:users_rogues_7a9k2m(name,email)
+            user:users_rogues_7a9k2m(name, email)
           )
         `)
         .eq('session_id', sessionId)
@@ -227,9 +220,25 @@ export const paceGroupService = {
         description: group.description,
         requiredPacers: group.required_pacers,
         shadowSlots: group.shadow_slots,
-        pacers: group.pacers?.filter(p => p.role === 'primary') || [],
-        shadowPacers: group.pacers?.filter(p => p.role === 'shadow') || [],
-        pendingVolunteers: []
+        pacers: group.pacers?.filter(p => p.role === 'primary').map(p => ({
+          userId: p.user_id,
+          userName: p.user.name,
+          userEmail: p.user.email,
+          status: p.status
+        })) || [],
+        shadowPacers: group.pacers?.filter(p => p.role === 'shadow').map(p => ({
+          userId: p.user_id,
+          userName: p.user.name,
+          userEmail: p.user.email,
+          status: p.status
+        })) || [],
+        pendingVolunteers: group.pacers?.filter(p => p.status === 'pending').map(p => ({
+          userId: p.user_id,
+          userName: p.user.name,
+          userEmail: p.user.email,
+          preferredRole: p.role,
+          status: p.status
+        })) || []
       }));
     } catch (error) {
       console.error('Failed to fetch pace groups:', error);
@@ -240,7 +249,6 @@ export const paceGroupService = {
   // Create pace group for session
   async createPaceGroup(groupData) {
     try {
-      // Handle numeric fields - convert empty strings to null
       const cleanNumericField = (value) => {
         if (value === '' || value === undefined || value === null) return null;
         const parsed = parseFloat(value);
@@ -262,6 +270,7 @@ export const paceGroupService = {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error('Failed to create pace group:', error);
@@ -278,6 +287,7 @@ export const paceGroupService = {
         .eq('id', groupId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to delete pace group:', error);
@@ -294,7 +304,6 @@ export const paceGroupService = {
         .single();
 
       if (error) {
-        // Return default settings if none exist
         return {
           pacerRoleTitle: 'Pacer',
           shadowRoleTitle: 'Shadow Pacer',
@@ -339,6 +348,7 @@ export const paceGroupService = {
         });
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to update pacer settings:', error);
@@ -346,40 +356,102 @@ export const paceGroupService = {
     }
   },
 
-  // Get user pacer status
+  // Get user pacer status for a session
   async getUserPacerStatus(sessionId, userId) {
     try {
-      // This would fetch user's pacer volunteer status
-      return {
-        isVolunteering: false,
-        preferredGroups: [],
-        preferredRoles: [],
-        status: 'none'
-      };
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          return {};
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      // Get all pace groups for this session and check user's status in each
+      const paceGroups = await this.getPaceGroupsBySessionId(sessionId);
+      const userStatus = {};
+
+      for (const group of paceGroups) {
+        // Check if user is a pacer in this group
+        const primaryPacer = group.pacers.find(p => p.userId === userUuid);
+        const shadowPacer = group.shadowPacers.find(p => p.userId === userUuid);
+        const pendingVolunteer = group.pendingVolunteers.find(p => p.userId === userUuid);
+
+        if (primaryPacer) {
+          userStatus[group.id] = { role: 'primary', status: primaryPacer.status };
+        } else if (shadowPacer) {
+          userStatus[group.id] = { role: 'shadow', status: shadowPacer.status };
+        } else if (pendingVolunteer) {
+          userStatus[group.id] = { role: pendingVolunteer.preferredRole, status: 'pending' };
+        }
+      }
+
+      return userStatus;
     } catch (error) {
       console.error('Failed to get user pacer status:', error);
-      return {
-        isVolunteering: false,
-        preferredGroups: [],
-        preferredRoles: [],
-        status: 'none'
-      };
+      return {};
     }
   },
 
   // Volunteer as pacer
   async volunteerAsPacer(sessionId, groupId, userId, role) {
     try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id, name')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      // First, ensure user is attending the session (auto-register if not)
+      try {
+        await sessionService.joinSession(sessionId, userUuid);
+      } catch (joinError) {
+        console.warn('User may already be attending:', joinError);
+      }
+
+      // Check if user is already volunteering for this group
+      const { data: existing, error: checkError } = await supabase
+        .from('pace_group_pacers_rogues_7a9k2m')
+        .select('id')
+        .eq('pace_group_id', groupId)
+        .eq('user_id', userUuid)
+        .maybeSingle();
+
+      if (existing) {
+        toast.info('You are already volunteering for this pace group');
+        return;
+      }
+
+      // Add as pacer volunteer
       const { error } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
         .insert([{
           pace_group_id: groupId,
-          user_id: userId,
+          user_id: userUuid,
           role: role,
           status: 'pending'
         }]);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to volunteer as pacer:', error);
@@ -390,13 +462,30 @@ export const paceGroupService = {
   // Cancel pacer volunteer
   async cancelPacerVolunteer(sessionId, groupId, userId) {
     try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
       const { error } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
         .delete()
         .eq('pace_group_id', groupId)
-        .eq('user_id', userId);
+        .eq('user_id', userUuid);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to cancel pacer volunteer:', error);
@@ -404,17 +493,45 @@ export const paceGroupService = {
     }
   },
 
-  // Approve pacer volunteer
+  // Approve pacer volunteer (admin/publisher action)
   async approvePacerVolunteer(sessionId, groupId, userId, role) {
     try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      // Ensure user is attending the session
+      try {
+        await sessionService.joinSession(sessionId, userUuid);
+      } catch (joinError) {
+        console.warn('User may already be attending:', joinError);
+      }
+
+      // Update pacer status to confirmed
       const { error } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
-        .update({ status: 'confirmed' })
+        .update({ 
+          status: 'confirmed',
+          updated_at: new Date().toISOString()
+        })
         .eq('pace_group_id', groupId)
-        .eq('user_id', userId)
+        .eq('user_id', userUuid)
         .eq('role', role);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to approve pacer volunteer:', error);
@@ -422,16 +539,33 @@ export const paceGroupService = {
     }
   },
 
-  // Reject pacer volunteer
+  // Reject pacer volunteer (admin/publisher action)
   async rejectPacerVolunteer(sessionId, groupId, userId) {
     try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
       const { error } = await supabase
         .from('pace_group_pacers_rogues_7a9k2m')
         .delete()
         .eq('pace_group_id', groupId)
-        .eq('user_id', userId);
+        .eq('user_id', userUuid);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error('Failed to reject pacer volunteer:', error);
@@ -439,10 +573,88 @@ export const paceGroupService = {
     }
   },
 
+  // Remove confirmed pacer (admin action)
+  async removePacer(sessionId, groupId, userId) {
+    try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      const { error } = await supabase
+        .from('pace_group_pacers_rogues_7a9k2m')
+        .delete()
+        .eq('pace_group_id', groupId)
+        .eq('user_id', userUuid);
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error('Failed to remove pacer:', error);
+      throw error;
+    }
+  },
+
+  // Admin: Assign pacer directly
+  async assignPacer(sessionId, groupId, userId, role = 'primary') {
+    try {
+      let userUuid;
+      if (!this.isValidUUID(userId)) {
+        const { data: userData, error: userError } = await supabase
+          .from('users_rogues_7a9k2m')
+          .select('id')
+          .eq('email', userId.includes('@') ? userId : 'admin@rogues.run')
+          .maybeSingle();
+
+        if (userError || !userData) {
+          throw new Error('User not found');
+        }
+        userUuid = userData.id;
+      } else {
+        userUuid = userId;
+      }
+
+      // Ensure user is attending the session
+      try {
+        await sessionService.joinSession(sessionId, userUuid);
+      } catch (joinError) {
+        console.warn('User may already be attending:', joinError);
+      }
+
+      // Add as confirmed pacer directly
+      const { error } = await supabase
+        .from('pace_group_pacers_rogues_7a9k2m')
+        .upsert({
+          pace_group_id: groupId,
+          user_id: userUuid,
+          role: role,
+          status: 'confirmed'
+        });
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error('Failed to assign pacer:', error);
+      throw error;
+    }
+  },
+
   // Helper to validate UUID
   isValidUUID(str) {
     if (!str) return false;
-    // UUID v4 regex pattern
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidRegex.test(str);
   }

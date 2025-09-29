@@ -1,21 +1,31 @@
-import React, {useState, useEffect} from 'react';
-import {motion} from 'framer-motion';
-import {useAuth} from '../contexts/AuthContext';
-import {useSettings} from '../contexts/SettingsContext';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import {formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance, DISTANCE_UNITS} from '../utils/unitConversion';
-import {paceGroupService} from '../services/paceGroupService';
+import { formatPaceWithUnit, formatDistanceWithUnit, convertPace, convertDistance, DISTANCE_UNITS } from '../utils/unitConversion';
+import { paceGroupService } from '../services/paceGroupService';
 import PaceGroupManager from './PaceGroupManager';
+import AdminPacerManager from './AdminPacerManager';
 import SessionTemplateModal from './SessionTemplateModal';
 import SessionAttendanceManager from './SessionAttendanceManager';
 import SessionCompletionModal from './SessionCompletionModal';
 
-const {FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend, FiSave, FiCheckCircle, FiUserCheck} = FiIcons;
+const { FiCalendar, FiClock, FiMapPin, FiUsers, FiActivity, FiTarget, FiInfo, FiEdit, FiTrash2, FiThumbsUp, FiMessageSquare, FiSend, FiSave, FiCheckCircle, FiUserCheck, FiSettings } = FiIcons;
 
-function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAttending, userInterested, onToggleInterest}) {
-  const {user} = useAuth();
-  const {distanceUnit} = useSettings();
+function SessionDetailView({ 
+  session, 
+  onJoin, 
+  onEdit, 
+  onDelete, 
+  canEdit, 
+  userAttending, 
+  userInterested, 
+  onToggleInterest 
+}) {
+  const { user } = useAuth();
+  const { distanceUnit } = useSettings();
   const [paceGroups, setPaceGroups] = useState([]);
   const [loadingPaceGroups, setLoadingPaceGroups] = useState(true);
   const [comments, setComments] = useState([]);
@@ -23,11 +33,11 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showAttendanceManager, setShowAttendanceManager] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showAdminPacerManager, setShowAdminPacerManager] = useState(false);
 
   useEffect(() => {
     if (session?.id) {
       loadPaceGroups();
-      // Load comments would go here
     }
   }, [session?.id]);
 
@@ -43,14 +53,12 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
     }
   };
 
-  // Format pace based on the selected unit
   const formatPace = (pace) => {
     if (!pace || isNaN(pace)) return 'N/A';
     const convertedPace = convertPace(pace, DISTANCE_UNITS.KILOMETERS, distanceUnit);
     return formatPaceWithUnit(convertedPace, distanceUnit);
   };
 
-  // Format distance based on the selected unit
   const formatDistance = (distance) => {
     if (!distance || isNaN(distance)) return 'N/A';
     const convertedDistance = convertDistance(distance, DISTANCE_UNITS.KILOMETERS, distanceUnit);
@@ -93,12 +101,10 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
   };
 
   const handleSessionCompleted = () => {
-    // Refresh the session data
-    window.location.reload(); // Simple refresh for now
+    window.location.reload();
   };
 
   const prepareSessionForTemplate = () => {
-    // Prepare the session data for the template modal
     const sessionTemplate = {
       title: session.title,
       description: session.description,
@@ -116,7 +122,6 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       waitlistEnabled: session.waitlistEnabled,
       specialInstructions: session.specialInstructions,
       requiredGear: session.requiredGear || [],
-      // Include pace groups if they exist
       paceGroups: paceGroups.map(group => ({
         name: group.name,
         minPace: group.minPace,
@@ -127,11 +132,9 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       }))
     };
 
-    console.log('Prepared session template data:', sessionTemplate);
     return sessionTemplate;
   };
 
-  // Check if session is past or completed
   const isSessionPast = () => {
     const sessionDateTime = new Date(`${session.date}T${session.time}`);
     return sessionDateTime < new Date() || session.status === 'completed';
@@ -141,6 +144,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
   const isPastOrCompleted = isSessionPast();
   const canManageAttendance = canEdit && (isSessionCompleted || isPastOrCompleted);
   const canCompleteSession = canEdit && isPastOrCompleted && session.status !== 'completed';
+  const canManagePacers = (user?.isAdmin || user?.canPublish) && !isPastOrCompleted;
 
   if (!session) {
     return (
@@ -154,8 +158,8 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
     <div className="space-y-6">
       {/* Session Header */}
       <motion.div
-        initial={{opacity: 0, y: 20}}
-        animate={{opacity: 1, y: 0}}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl p-8 shadow-sm"
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
@@ -246,7 +250,8 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
                         ? `From ${formatPace(session.paceMin)}`
                         : session.paceMax
                         ? `Up to ${formatPace(session.paceMax)}`
-                        : 'N/A'}
+                        : 'N/A'
+                      }
                     </p>
                   </div>
                 </div>
@@ -254,7 +259,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
             </div>
           </div>
 
-          {/* Action Buttons - Stacked on mobile, side by side on desktop */}
+          {/* Action Buttons */}
           <div className="flex flex-col space-y-3 md:w-auto md:ml-4">
             {!isPastOrCompleted && (
               <button
@@ -268,11 +273,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
-                {userAttending
-                  ? 'Leave Session'
-                  : session.attendeeCount >= session.maxAttendees
-                  ? 'Session Full'
-                  : 'Join Session'}
+                {userAttending ? 'Leave Session' : session.attendeeCount >= session.maxAttendees ? 'Session Full' : 'Join Session'}
               </button>
             )}
 
@@ -290,7 +291,7 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
               </button>
             )}
 
-            {/* Attendance Management - Always show for completed sessions if user has permission */}
+            {/* Attendance Management */}
             {canManageAttendance && (
               <button
                 onClick={() => setShowAttendanceManager(!showAttendanceManager)}
@@ -312,11 +313,22 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
               </button>
             )}
 
-            {/* Save as Template button */}
+            {/* Admin Pacer Management */}
+            {canManagePacers && paceGroups.length > 0 && (
+              <button
+                onClick={() => setShowAdminPacerManager(!showAdminPacerManager)}
+                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+              >
+                <SafeIcon icon={FiSettings} className="w-4 h-4" />
+                <span>Manage Pacers</span>
+              </button>
+            )}
+
+            {/* Save as Template */}
             {(user?.canPublish || user?.isAdmin) && (
               <button
                 onClick={() => setShowTemplateModal(true)}
-                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+                className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-orange-100 text-orange-700 hover:bg-orange-200"
               >
                 <SafeIcon icon={FiSave} className="w-4 h-4" />
                 <span>Save as Template</span>
@@ -385,18 +397,17 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
         )}
       </motion.div>
 
-      {/* Attendance Management - Always show for completed sessions, regardless of showAttendanceManager toggle */}
+      {/* Attendance Management */}
       {(showAttendanceManager || isSessionCompleted) && (
         <motion.div
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance Management</h2>
           <SessionAttendanceManager
             session={session}
             onUpdate={() => {
-              // Refresh session data
               window.location.reload();
             }}
             canManage={canEdit}
@@ -407,9 +418,9 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       {/* Additional Information */}
       {(session.specialInstructions || session.requiredGear) && (
         <motion.div
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          transition={{delay: 0.1}}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <div className="flex items-center space-x-2 mb-4">
@@ -429,7 +440,10 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
               <h3 className="font-medium text-gray-900 mb-2">Required Gear</h3>
               <div className="flex flex-wrap gap-2">
                 {session.requiredGear.map((item, index) => (
-                  <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                  <span
+                    key={index}
+                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                  >
                     {item}
                   </span>
                 ))}
@@ -439,20 +453,54 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
         </motion.div>
       )}
 
-      {/* Pace Groups */}
-      {paceGroups.length > 0 && (
+      {/* Admin Pacer Management */}
+      {showAdminPacerManager && canManagePacers && (
         <motion.div
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          transition={{delay: 0.2}}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pace Groups</h2>
+          <AdminPacerManager
+            sessionId={session.id}
+            paceGroups={paceGroups}
+            onUpdate={loadPaceGroups}
+          />
+        </motion.div>
+      )}
+
+      {/* Pace Groups with Enhanced Pacer Management */}
+      {paceGroups.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-xl p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Pace Groups & Pacers</h2>
+            {!isPastOrCompleted && user && (
+              <div className="text-sm text-blue-600">
+                Volunteer as a pacer to help lead the groups!
+              </div>
+            )}
+          </div>
+
+          {!isPastOrCompleted && user && !userAttending && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <SafeIcon icon={FiUsers} className="w-4 h-4 text-yellow-600" />
+                <p className="text-sm text-yellow-800">
+                  <strong>Note:</strong> Volunteering as a pacer will automatically register you for this session.
+                </p>
+              </div>
+            </div>
+          )}
+
           <PaceGroupManager
             sessionId={session.id}
             paceGroups={paceGroups}
             onUpdate={loadPaceGroups}
-            readOnly={true}
+            readOnly={isPastOrCompleted}
           />
         </motion.div>
       )}
@@ -460,16 +508,16 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       {/* Attendees - Only show if not showing attendance manager */}
       {session.attendees && session.attendees.length > 0 && !showAttendanceManager && !isSessionCompleted && (
         <motion.div
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          transition={{delay: 0.3}}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendees ({session.attendees.length})</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {session.attendees.map((attendee, index) => (
               <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
                   {attendee.user?.picture ? (
                     <img
                       src={attendee.user.picture}
@@ -494,9 +542,9 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
       {/* Interested Users - Only show if not completed */}
       {!isSessionCompleted && session.interestedUsers && session.interestedUsers.length > 0 && (
         <motion.div
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          transition={{delay: 0.4}}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
           className="bg-white rounded-xl p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -504,7 +552,10 @@ function SessionDetailView({session, onJoin, onEdit, onDelete, canEdit, userAtte
           </h2>
           <div className="flex flex-wrap gap-2">
             {session.interestedUsers.map((interested, index) => (
-              <span key={index} className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+              <span
+                key={index}
+                className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm"
+              >
                 {interested.user?.name || interested}
               </span>
             ))}
